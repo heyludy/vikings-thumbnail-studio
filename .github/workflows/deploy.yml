@@ -1,12 +1,13 @@
 name: Deploy
 
 # 휴대폰에서도 배포할 수 있게 만든 워크플로.
-# GitHub 웹에서 Actions → Deploy → "Run workflow" 로 실행하면
-# 선택한 브랜치를 Cloudflare Workers 로 배포하고, 이어서 제주국제오픈
-# 프로젝트/참가팀 데이터를 배포본에 동기화한다.
+# main 에 푸시하거나, Actions → Deploy → "Run workflow" 로 실행하면
+# Cloudflare Workers 로 배포하고 제주국제오픈 프로젝트/참가팀 데이터를 동기화한다.
 #
 # 필요한 저장소 시크릿 (Settings → Secrets and variables → Actions):
-#   CLOUDFLARE_API_TOKEN   필수. Workers Scripts 편집 + D1 편집 권한
+#   CLOUDFLARE_API_TOKEN   필수. 아래 두 권한이 반드시 있어야 한다.
+#                            - Account → Workers Scripts → Edit
+#                            - Account → D1 → Edit
 #   CLOUDFLARE_ACCOUNT_ID  선택. 토큰이 여러 계정에 연결된 경우에만 필요
 
 on:
@@ -28,7 +29,9 @@ concurrency:
 
 env:
   SITE_URL: https://vikings.ludia0602.workers.dev
-  CLOUDFLARE_DATABASE_ID: e0e1a2d0-9b02-4018-adc0-f9a6934c696a
+  D1_DATABASE_NAME: vikings-thumbnail-studio-db
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
 jobs:
   deploy:
@@ -44,21 +47,36 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run build
-
-      - name: Deploy to Cloudflare Workers
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_EXTERNAL_DEPLOY: "1"
+      # 토큰이 어떤 계정에 연결됐고 어떤 권한을 갖고 있는지 로그에 남긴다.
+      # 배포가 실패하면 이 출력만 보고 원인을 알 수 있다.
+      - name: Check Cloudflare token
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
             echo "::error::CLOUDFLARE_API_TOKEN 시크릿이 없습니다. Settings → Secrets and variables → Actions 에서 추가하세요."
             exit 1
           fi
-          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            unset CLOUDFLARE_ACCOUNT_ID
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then unset CLOUDFLARE_ACCOUNT_ID; fi
+          npx wrangler whoami
+
+      # D1 데이터베이스 ID 를 이름으로 찾는다. ID 를 워크플로에 박아두면
+      # 데이터베이스를 다시 만들 때마다 배포가 깨지고, 토큰에 D1 권한이 없을 때
+      # "database not found" 라는 엉뚱한 메시지만 남는다.
+      - name: Resolve D1 database
+        id: d1
+        run: |
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then unset CLOUDFLARE_ACCOUNT_ID; fi
+          if ! npx wrangler d1 list --json > d1-list.json; then
+            echo "::error::D1 목록을 읽지 못했습니다. API 토큰에 Account → D1 → Edit 권한을 추가하고 다시 실행하세요."
+            exit 1
           fi
+          node scripts/resolve-d1.mjs d1-list.json
+
+      - name: Deploy to Cloudflare Workers
+        env:
+          CLOUDFLARE_EXTERNAL_DEPLOY: "1"
+          CLOUDFLARE_DATABASE_ID: ${{ steps.d1.outputs.database_id }}
+        run: |
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then unset CLOUDFLARE_ACCOUNT_ID; fi
           npx vinext deploy
 
       - name: Sync Jeju tournament data
