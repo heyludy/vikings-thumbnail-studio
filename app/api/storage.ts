@@ -120,6 +120,14 @@ async function ensureFixtureUrlColumn(db: D1Database) {
     .run();
 }
 
+// 결과 썸네일의 스코어를 기록하려고 나중에 추가한 컬럼.
+async function ensureScoreColumns(db: D1Database) {
+  const columns = await db.prepare("PRAGMA table_info(thumbnails)").all<{ name: string }>();
+  const names = columns.results.map((column: { name: string }) => column.name);
+  if (!names.includes("our_score")) await db.prepare("ALTER TABLE thumbnails ADD COLUMN our_score TEXT").run();
+  if (!names.includes("their_score")) await db.prepare("ALTER TABLE thumbnails ADD COLUMN their_score TEXT").run();
+}
+
 export async function ensureSchema(db: D1Database) {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS projects (
@@ -147,6 +155,8 @@ export async function ensureSchema(db: D1Database) {
       opponent_id TEXT NOT NULL,
       theme TEXT NOT NULL,
       stage_text TEXT NOT NULL,
+      our_score TEXT,
+      their_score TEXT,
       photo_name TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
@@ -167,6 +177,7 @@ export async function ensureSchema(db: D1Database) {
 
   await ensureDivisionColumn(db);
   await ensureFixtureUrlColumn(db);
+  await ensureScoreColumns(db);
 
   const count = await db.prepare("SELECT COUNT(*) AS count FROM projects").first<{ count: number }>();
   if (!count?.count) {

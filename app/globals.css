@@ -794,3 +794,20 @@ canvas {
   font-size: 12px;
   font-weight: 600;
 }
+
+.score-inputs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.score-inputs input {
+  width: 92px;
+  text-align: center;
+}
+
+.score-inputs span {
+  color: var(--muted-strong);
+  font-size: 20px;
+  font-weight: 700;
+}

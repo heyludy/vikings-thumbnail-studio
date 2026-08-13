@@ -140,7 +140,70 @@ const loadImage = (src: string): Promise<HTMLImageElement> =>
     img.src = src;
   });
 
-async function compressLogoFile(file: File) {
+/**
+ * 로고 테두리 안쪽의 투명한 부분을 흰색으로 채운다.
+ * 배지 안쪽을 투명하게 그려둔 로고(예: 링 안에 글자만 있는 엠블럼)를 어두운
+ * 패널 위에 올리면 글자가 배경에 묻혀 사라지기 때문이다.
+ * 이미지 바깥과 이어진 투명 영역은 그대로 둬서 로고 주변은 계속 비친다.
+ */
+function fillEnclosedTransparency(pixels: ImageData) {
+  const { width, height, data } = pixels;
+  const total = width * height;
+  const transparent = new Uint8Array(total);
+  let transparentCount = 0;
+  for (let index = 0; index < total; index += 1) {
+    if (data[index * 4 + 3] < 16) {
+      transparent[index] = 1;
+      transparentCount += 1;
+    }
+  }
+  if (!transparentCount) return 0;
+
+  // 테두리에서 시작해 이어진 투명 픽셀을 모두 "바깥"으로 표시한다.
+  const outside = new Uint8Array(total);
+  const queue = new Int32Array(transparentCount);
+  let head = 0;
+  let tail = 0;
+  const push = (index: number) => {
+    if (transparent[index] && !outside[index]) {
+      outside[index] = 1;
+      queue[tail] = index;
+      tail += 1;
+    }
+  };
+  for (let x = 0; x < width; x += 1) {
+    push(x);
+    push((height - 1) * width + x);
+  }
+  for (let y = 0; y < height; y += 1) {
+    push(y * width);
+    push(y * width + width - 1);
+  }
+  while (head < tail) {
+    const index = queue[head];
+    head += 1;
+    const x = index % width;
+    const y = (index - x) / width;
+    if (x > 0) push(index - 1);
+    if (x < width - 1) push(index + 1);
+    if (y > 0) push(index - width);
+    if (y < height - 1) push(index + width);
+  }
+
+  let filled = 0;
+  for (let index = 0; index < total; index += 1) {
+    if (transparent[index] && !outside[index]) {
+      data[index * 4] = 255;
+      data[index * 4 + 1] = 255;
+      data[index * 4 + 2] = 255;
+      data[index * 4 + 3] = 255;
+      filled += 1;
+    }
+  }
+  return filled;
+}
+
+async function prepareLogoFile(file: File) {
   const loaded = await readImageFromFile(file);
   try {
     const maxSide = 512;
@@ -149,11 +212,18 @@ async function compressLogoFile(file: File) {
     canvas.width = Math.max(1, Math.round(loaded.img.naturalWidth * ratio));
     canvas.height = Math.max(1, Math.round(loaded.img.naturalHeight * ratio));
     const ctx = canvas.getContext("2d");
-    if (!ctx) return file;
+    if (!ctx) return { file, filled: 0 };
     ctx.drawImage(loaded.img, 0, 0, canvas.width, canvas.height);
+
+    let filled = 0;
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    filled = fillEnclosedTransparency(pixels);
+    if (filled) ctx.putImageData(pixels, 0, 0);
+
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.9));
-    if (!blob) return file;
-    return new File([blob], `${file.name.replace(/\.[^.]+$/, "") || "logo"}.webp`, { type: "image/webp" });
+    if (!blob) return { file, filled };
+    const prepared = new File([blob], `${file.name.replace(/\.[^.]+$/, "") || "logo"}.webp`, { type: "image/webp" });
+    return { file: prepared, filled };
   } finally {
     URL.revokeObjectURL(loaded.src);
   }
@@ -392,12 +462,50 @@ function drawThemePanel(ctx: CanvasRenderingContext2D, theme: TeamTheme) {
   ctx.restore();
 }
 
+type MatchScore = { ours: string; theirs: string };
+
+const outcomeOf = (score: MatchScore) => {
+  const ours = Number(score.ours);
+  const theirs = Number(score.theirs);
+  if (!Number.isFinite(ours) || !Number.isFinite(theirs)) return null;
+  if (ours > theirs) return "승";
+  if (ours < theirs) return "패";
+  return "무";
+};
+
+/** 승/패/무 알약. 승은 흰 배경, 패는 어두운 배경으로 한눈에 갈린다. */
+function drawOutcomePill(ctx: CanvasRenderingContext2D, label: string, cx: number, cy: number) {
+  ctx.save();
+  ctx.font = sportFont(34);
+  const width = Math.max(96, ctx.measureText(label).width + 52);
+  const height = 54;
+  ctx.beginPath();
+  ctx.roundRect(cx - width / 2, cy - height / 2, width, height, height / 2);
+  if (label === "승") {
+    ctx.fillStyle = "rgba(255,255,255,.94)";
+    ctx.fill();
+    ctx.fillStyle = "#141033";
+  } else {
+    ctx.fillStyle = label === "패" ? "rgba(6,4,18,.5)" : "rgba(255,255,255,.26)";
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(255,255,255,.5)";
+    ctx.stroke();
+    ctx.fillStyle = "#ffffff";
+  }
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, cx, cy + 2);
+  ctx.restore();
+}
+
 type RenderInputs = {
   canvas: HTMLCanvasElement;
   theme: TeamTheme;
   project: Project;
   opponent: Opponent;
   stageText: string;
+  score: MatchScore | null;
   gamePhoto?: HTMLImageElement;
   logoImages: Record<string, HTMLImageElement>;
   zoom: number;
@@ -411,6 +519,7 @@ function renderThumbnail({
   project,
   opponent,
   stageText,
+  score,
   gamePhoto,
   logoImages,
   zoom,
@@ -475,7 +584,25 @@ function renderThumbnail({
   const stage = stageText || "[예선 4경기]";
   drawSportText(ctx, stage, lineCenterX(640, 88), 640, 88, "center", lineMaxWidth(640, 88));
 
-  if (vikingsLogo) drawContainImage(ctx, vikingsLogo, 190, 865, 265, 265);
+  const hasScore = score !== null && (score.ours !== "" || score.theirs !== "");
+  // 스코어를 넣을 때는 두 로고를 조금 좁혀 가운데 자리를 만든다.
+  const teamLogoSize = hasScore ? 235 : 265;
+  const ourLogoX = hasScore ? 165 : 190;
+  const opponentLogoX = hasScore ? 620 : 598;
+  const opponentLogoSize = hasScore ? 225 : 250;
+
+  if (vikingsLogo) drawContainImage(ctx, vikingsLogo, ourLogoX, 865, teamLogoSize, teamLogoSize);
+  // 분할선(y=865 에서 x≈788)과 겹치지 않도록 상대팀 로고를 왼쪽으로 당긴다.
+  if (opponentLogo) drawLogoCircle(ctx, opponentLogo, opponentLogoX, 865, opponentLogoSize, true);
+
+  const betweenX = (ourLogoX + teamLogoSize / 2 + opponentLogoX - opponentLogoSize / 2 - 10) / 2;
+  if (hasScore) {
+    drawSportText(ctx, `${score.ours || 0} : ${score.theirs || 0}`, betweenX, 880, 96, "center", 205);
+    const outcome = outcomeOf(score);
+    if (outcome) drawOutcomePill(ctx, outcome, betweenX, 950);
+    return;
+  }
+
   ctx.save();
   ctx.font = `italic 900 84px ${CANVAS_FONT_STACK}`;
   ctx.textAlign = "center";
@@ -485,10 +612,8 @@ function renderThumbnail({
   ctx.shadowOffsetX = 3;
   ctx.shadowOffsetY = 4;
   // 우리 팀 로고(오른쪽 끝 ≈323)와 상대 로고 원(왼쪽 끝 ≈463) 사이 가운데.
-  ctx.fillText("vs", 393, 895);
+  ctx.fillText("vs", betweenX, 895);
   ctx.restore();
-  // 분할선(y=865 에서 x≈788)과 겹치지 않도록 상대팀 로고를 왼쪽으로 당긴다.
-  if (opponentLogo) drawLogoCircle(ctx, opponentLogo, 598, 865, 250, true);
 }
 
 export default function ThumbnailStudio() {
@@ -504,6 +629,8 @@ export default function ThumbnailStudio() {
   const [selectedOpponentId, setSelectedOpponentId] = useState(DEFAULT_OPPONENTS[0].id);
   const [theme, setTheme] = useState<TeamTheme>("men");
   const [stageText, setStageText] = useState("[5,6위 결정전]");
+  const [ourScore, setOurScore] = useState("");
+  const [theirScore, setTheirScore] = useState("");
   const [gamePhoto, setGamePhoto] = useState<LoadedImage | null>(null);
   const [zoom, setZoom] = useState(1);
   const [offsetX, setOffsetX] = useState(0);
@@ -537,6 +664,10 @@ export default function ThumbnailStudio() {
       ?? DEFAULT_OPPONENTS[0],
     [selectedOpponentId, visibleOpponents],
   );
+
+  // 두 칸 중 하나만 채워도 결과 썸네일로 그린다.
+  const score = ourScore !== "" || theirScore !== "" ? { ours: ourScore, theirs: theirScore } : null;
+  const readScore = (value: string) => value.replace(/[^0-9]/g, "").slice(0, 2);
 
   const logoUrls = useMemo(() => {
     const urls = new Set([VIKINGS_LOGO_URL, selectedProject.logoUrl, selectedOpponent.logoUrl]);
@@ -618,13 +749,14 @@ export default function ThumbnailStudio() {
       project: selectedProject,
       opponent: selectedOpponent,
       stageText,
+      score,
       gamePhoto: gamePhoto?.img,
       logoImages,
       zoom,
       offsetX,
       offsetY,
     });
-  }, [fontsVersion, gamePhoto, logoImages, offsetX, offsetY, selectedOpponent, selectedProject, stageText, theme, view, zoom]);
+  }, [fontsVersion, gamePhoto, logoImages, offsetX, offsetY, score?.ours, score?.theirs, selectedOpponent, selectedProject, stageText, theme, view, zoom]);
 
   // 대회 사이트에서 우리 팀 경기 일정을 받아온다. 테마(남/여)에 맞는 부서만 가져온다.
   const fixtureUrl = view === "editor" ? selectedProject.fixtureUrl ?? "" : "";
@@ -767,7 +899,8 @@ export default function ThumbnailStudio() {
 
   const uploadStoredImage = async (file: File, folder: string) => {
     const form = new FormData();
-    const uploadFile = await compressLogoFile(file);
+    const { file: uploadFile, filled } = await prepareLogoFile(file);
+    if (filled) setStatus(`로고 안쪽 투명한 부분을 흰색으로 채웠습니다. (${filled.toLocaleString()}픽셀)`);
     form.append("file", uploadFile);
     form.append("folder", folder);
     const response = await fetch("/api/uploads", { method: "POST", body: form });
@@ -980,13 +1113,15 @@ export default function ThumbnailStudio() {
       project: selectedProject,
       opponent: selectedOpponent,
       stageText,
+      score,
       gamePhoto: gamePhoto?.img,
       logoImages,
       zoom,
       offsetX,
       offsetY,
     });
-    const safeName = `${selectedProject.name}-${stageText || "thumbnail"}`.replace(/[\\/:*?"<>|]/g, "_");
+    const scoreSuffix = score ? `-${score.ours || 0}-${score.theirs || 0}` : "";
+    const safeName = `${selectedProject.name}-${stageText || "thumbnail"}${scoreSuffix}`.replace(/[\\/:*?"<>|]/g, "_");
     const fileName = `${safeName}.png`;
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
     if (!blob) {
@@ -1032,6 +1167,8 @@ export default function ThumbnailStudio() {
         opponentId: selectedOpponent.id,
         theme,
         stageText,
+        ourScore: score?.ours ?? null,
+        theirScore: score?.theirs ?? null,
         photoName: gamePhoto?.fileName ?? null,
       }),
     });
@@ -1201,6 +1338,33 @@ export default function ThumbnailStudio() {
         <div className="control-block">
           <label htmlFor="stage">경기명</label>
           <input id="stage" value={stageText} onChange={(event) => setStageText(event.target.value)} placeholder="[예선 4경기]" />
+        </div>
+
+        <div className="control-block">
+          <label htmlFor="our-score">스코어 (비우면 경기 예고)</label>
+          <div className="score-inputs">
+            <input
+              id="our-score"
+              inputMode="numeric"
+              value={ourScore}
+              onChange={(event) => setOurScore(readScore(event.target.value))}
+              placeholder="우리"
+              aria-label="우리 팀 점수"
+            />
+            <span aria-hidden="true">:</span>
+            <input
+              inputMode="numeric"
+              value={theirScore}
+              onChange={(event) => setTheirScore(readScore(event.target.value))}
+              placeholder="상대"
+              aria-label="상대 팀 점수"
+            />
+            {score ? (
+              <button type="button" className="secondary-action" onClick={() => { setOurScore(""); setTheirScore(""); }}>
+                지우기
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="control-block">
