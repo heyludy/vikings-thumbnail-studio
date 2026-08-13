@@ -6,6 +6,8 @@ type TeamTheme = "men" | "women";
 type Division = TeamTheme | "both";
 
 const VIKINGS_LOGO_URL = "/assets/vikings-logo-v3.webp";
+// globals.css 에 심어둔 Pretendard Black. 기기 폰트에 맡기면 굵기가 기기마다 달라진다.
+const CANVAS_FONT_STACK = '"PretendardCanvas", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Arial Black", sans-serif';
 const DIVISION_LABELS: Record<Division, string> = { men: "남자부", women: "여자부", both: "공통" };
 
 type Project = {
@@ -32,6 +34,12 @@ type LoadedImage = {
 
 const WIDTH = 1920;
 const HEIGHT = 1080;
+// 왼쪽 패널은 위 900 → 아래 760 으로 좁아지는 사다리꼴이다.
+const SPLIT_TOP = 900;
+const SPLIT_BOTTOM = 760;
+const panelEdgeX = (y: number) => SPLIT_TOP - (SPLIT_TOP - SPLIT_BOTTOM) * (y / HEIGHT);
+// 그 높이에서의 패널 가로 중앙. 고정 좌표로 그리면 아래쪽 줄이 오른쪽으로 밀려 보인다.
+const panelCenterX = (y: number) => panelEdgeX(y) / 2;
 const JEJU_PROJECT: Project = {
   id: "jeju-open-2026",
   name: "2026 제주국제오픈",
@@ -167,8 +175,7 @@ function drawContainImage(
   ctx.restore();
 }
 
-const sportFont = (size: number) =>
-  `900 ${size}px "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Arial Black", sans-serif`;
+const sportFont = (size: number) => `900 ${size}px ${CANVAS_FONT_STACK}`;
 
 // 영문 대회명처럼 긴 문구는 패널을 넘지 않도록 글자 크기를 줄인다.
 function fitSportFontSize(ctx: CanvasRenderingContext2D, text: string, size: number, maxWidth: number) {
@@ -277,8 +284,8 @@ function drawLogoCircle(
 }
 
 function drawThemePanel(ctx: CanvasRenderingContext2D, theme: TeamTheme) {
-  const splitTop = 900;
-  const splitBottom = 760;
+  const splitTop = SPLIT_TOP;
+  const splitBottom = SPLIT_BOTTOM;
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(0, 0);
@@ -398,8 +405,8 @@ function renderThumbnail({
   ctx.fillStyle = "#f0eadb";
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  const splitTop = 900;
-  const splitBottom = 760;
+  const splitTop = SPLIT_TOP;
+  const splitBottom = SPLIT_BOTTOM;
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(splitTop, 0);
@@ -430,19 +437,26 @@ function renderThumbnail({
   const opponentLogo = logoImages[opponent.logoUrl];
 
   // 대회 로고와 우리 팀 로고는 원형으로 자르지 않고 원본 비율 그대로 중앙에 그린다.
-  if (projectLogo) drawContainImage(ctx, projectLogo, 420, 155, 230, 210);
+  if (projectLogo) drawContainImage(ctx, projectLogo, panelCenterX(155), 155, 230, 210);
+
+  // 각 줄을 그 높이의 패널 중앙에 맞춘다. 글자 덩어리의 가운데가 기준이라
+  // 기준선에서 글자 높이의 절반쯤 올린 위치로 계산한다.
+  const lineCenterX = (baseline: number, size: number) => panelCenterX(baseline - size * 0.35);
+  const lineMaxWidth = (baseline: number, size: number) => panelEdgeX(baseline - size * 0.35) - 96;
+
   // 두 줄은 같은 크기로 보이도록 더 작게 맞춰지는 쪽을 함께 쓴다.
   const titleSize = Math.min(
-    fitSportFontSize(ctx, project.tournamentLine1, 76, 720),
-    fitSportFontSize(ctx, project.tournamentLine2, 76, 720),
+    fitSportFontSize(ctx, project.tournamentLine1, 76, lineMaxWidth(350, 76)),
+    fitSportFontSize(ctx, project.tournamentLine2, 76, lineMaxWidth(438, 76)),
   );
-  drawSportText(ctx, project.tournamentLine1, 420, 350, titleSize);
-  drawSportText(ctx, project.tournamentLine2, 420, 438, titleSize);
-  drawSportText(ctx, stageText || "[예선 4경기]", 425, 640, 88, "center", 700);
+  drawSportText(ctx, project.tournamentLine1, lineCenterX(350, titleSize), 350, titleSize);
+  drawSportText(ctx, project.tournamentLine2, lineCenterX(438, titleSize), 438, titleSize);
+  const stage = stageText || "[예선 4경기]";
+  drawSportText(ctx, stage, lineCenterX(640, 88), 640, 88, "center", lineMaxWidth(640, 88));
 
   if (vikingsLogo) drawContainImage(ctx, vikingsLogo, 190, 865, 265, 265);
   ctx.save();
-  ctx.font = 'italic 900 84px "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Arial Black", sans-serif';
+  ctx.font = `italic 900 84px ${CANVAS_FONT_STACK}`;
   ctx.textAlign = "center";
   ctx.fillStyle = "#ffffff";
   ctx.shadowColor = "rgba(0,0,0,.34)";
@@ -481,6 +495,7 @@ export default function ThumbnailStudio() {
   const [opponentDivision, setOpponentDivision] = useState<Division>("both");
   const [opponentLogoFile, setOpponentLogoFile] = useState<File | null>(null);
   const [logoImages, setLogoImages] = useState<Record<string, HTMLImageElement>>({});
+  const [fontsVersion, setFontsVersion] = useState(0);
   const [status, setStatus] = useState("준비 완료");
 
   const selectedProject = useMemo(
@@ -552,6 +567,24 @@ export default function ThumbnailStudio() {
     };
   }, [logoUrls]);
 
+  // 웹폰트가 준비되기 전에 그리면 기기 기본 폰트로 한 번 그려진다.
+  // 로드가 끝나면 버전을 올려 같은 문구를 제대로 된 굵기로 다시 그린다.
+  useEffect(() => {
+    const text = `${selectedProject.tournamentLine1}${selectedProject.tournamentLine2}${stageText}vs`;
+    let cancelled = false;
+    Promise.all([
+      document.fonts.load(sportFont(76), text),
+      document.fonts.load(`italic 900 84px ${CANVAS_FONT_STACK}`, "vs"),
+    ])
+      .catch(() => undefined)
+      .then(() => {
+        if (!cancelled) setFontsVersion((version) => version + 1);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProject.tournamentLine1, selectedProject.tournamentLine2, stageText]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || view !== "editor") return;
@@ -567,7 +600,7 @@ export default function ThumbnailStudio() {
       offsetX,
       offsetY,
     });
-  }, [gamePhoto, logoImages, offsetX, offsetY, selectedOpponent, selectedProject, stageText, theme, view, zoom]);
+  }, [fontsVersion, gamePhoto, logoImages, offsetX, offsetY, selectedOpponent, selectedProject, stageText, theme, view, zoom]);
 
   const uploadStoredImage = async (file: File, folder: string) => {
     const form = new FormData();
@@ -773,6 +806,8 @@ export default function ThumbnailStudio() {
   const downloadPng = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // 저장 직전에 다시 그리므로 웹폰트가 확실히 준비된 뒤에 그린다.
+    await document.fonts.ready;
     renderThumbnail({
       canvas,
       theme,

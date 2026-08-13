@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* 썸네일 글자를 어떤 기기에서든 같은 두께로 그리기 위한 폰트.
+   기기 폰트(iOS 는 Apple SD Gothic Neo)에 맡기면 900 굵기가 무시돼 얇게 나온다.
+   한글 11,172자 + 라틴만 남긴 Pretendard Black 서브셋. */
+@font-face {
+  font-family: "PretendardCanvas";
+  src: url("/assets/fonts/pretendard-black.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: block;
+}
+
 :root {
   --ink: #f7f5ff;
   --muted: #a9a4bd;

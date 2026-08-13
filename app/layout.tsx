@@ -41,6 +41,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
+      <head>
+        {/* 썸네일 글자를 그리는 데 바로 필요한 폰트라 미리 받아둔다. */}
+        <link
+          rel="preload"
+          href="/assets/fonts/pretendard-black.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body>{children}</body>
     </html>
   );
