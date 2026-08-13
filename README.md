@@ -31,7 +31,23 @@ npx vinext deploy
 ```
 
 Uploaded images are stored in D1 when an R2 bucket is not configured, so the
-public deployment works without enabling R2 billing.
+public deployment works without enabling R2 billing. Image bytes are kept as
+base64 text because D1 returns BLOB columns differently depending on the
+runtime, which made uploaded logos come back as empty responses in production.
+
+## Tournament seeding
+
+A fresh database is bootstrapped with the `2026 제주국제오픈` project and its
+participating teams (logos in `public/assets/jeju/`, sourced from
+<https://flovus.info/competitions/6>). To register the same project and teams on
+an already-deployed site, whose database is no longer empty:
+
+```bash
+node scripts/seed-jeju.mjs https://vikings.ludia0602.workers.dev
+```
+
+The script skips entries that already exist with a working logo, and falls back
+to inlined `data:` URLs when the deployment cannot serve uploaded images yet.
 
 ## Included Shape
 

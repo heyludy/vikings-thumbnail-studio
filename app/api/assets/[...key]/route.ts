@@ -1,4 +1,4 @@
-import { ensureSchema, getBindings, jsonError } from "../../storage";
+import { decodeAssetBody, ensureSchema, getBindings, jsonError } from "../../storage";
 
 export const runtime = "edge";
 
@@ -19,10 +19,13 @@ export async function GET(_request: Request, context: { params: Promise<{ key: s
   await ensureSchema(DB);
   const asset = await DB.prepare("SELECT content_type, body FROM assets WHERE key = ?")
     .bind(objectKey)
-    .first<{ content_type: string; body: ArrayBuffer }>();
+    .first<{ content_type: string; body: unknown }>();
   if (!asset) return jsonError("Asset not found.", 404);
 
-  return new Response(asset.body, {
+  const bytes = decodeAssetBody(asset.body);
+  if (!bytes.byteLength) return jsonError("Asset body is empty.", 404);
+
+  return new Response(bytes, {
     headers: {
       "content-type": asset.content_type,
       "cache-control": "public, max-age=31536000, immutable",

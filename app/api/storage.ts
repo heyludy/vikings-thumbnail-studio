@@ -30,36 +30,61 @@ export function createId(prefix: string) {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, "")}`;
 }
 
+// D1 은 BLOB 바인딩/반환 형식이 런타임마다 달라 업로드한 이미지가 빈 응답으로
+// 나오는 경우가 있다. 이미지는 base64 텍스트로 저장하고, 읽을 때는 예전에 저장된
+// BLOB 형식(ArrayBuffer / TypedArray / number[])도 함께 처리한다.
+export function encodeAssetBody(bytes: Uint8Array) {
+  let binary = "";
+  const chunk = 0x2000;
+  for (let index = 0; index < bytes.length; index += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunk));
+  }
+  return btoa(binary);
+}
+
+export function decodeAssetBody(body: unknown): Uint8Array {
+  if (typeof body === "string") {
+    const binary = atob(body);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes;
+  }
+  if (body instanceof ArrayBuffer) return new Uint8Array(body);
+  if (ArrayBuffer.isView(body)) return new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
+  if (Array.isArray(body)) return Uint8Array.from(body as number[]);
+  return new Uint8Array();
+}
+
 // 2026 제주국제오픈 참가팀 (남자부 16팀 + 여자부 13팀, Seoul Vikings 제외)
 // 출처: https://flovus.info/competitions/6
 const JEJU_TEAMS: Array<[id: string, name: string, logoUrl: string]> = [
-  ["jeju-hong-kong-stars", "Hong Kong Stars", "/assets/jeju/hong-kong-stars-logo.png"],
-  ["jeju-ntu-men-s-white", "NTU Men's White", "/assets/jeju/ntu-men-s-white-logo.png"],
-  ["jeju-tamla-devil", "Tamla Devil", "/assets/jeju/tamla-devil-logo.png"],
-  ["jeju-team-leopard", "Team Leopard", "/assets/jeju/team-leopard-logo.png"],
-  ["jeju-astra", "ASTRA", "/assets/jeju/astra-logo.png"],
-  ["jeju-jeju-oceans", "Jeju Oceans", "/assets/jeju/jeju-oceans-logo.png"],
+  ["jeju-hong-kong-stars", "Hong Kong Stars", "/assets/jeju/hong-kong-stars-logo.webp"],
+  ["jeju-ntu-men-s-white", "NTU Men's White", "/assets/jeju/ntu-men-s-white-logo.webp"],
+  ["jeju-tamla-devil", "Tamla Devil", "/assets/jeju/tamla-devil-logo.webp"],
+  ["jeju-team-leopard", "Team Leopard", "/assets/jeju/team-leopard-logo.webp"],
+  ["jeju-astra", "ASTRA", "/assets/jeju/astra-logo.webp"],
+  ["jeju-jeju-oceans", "Jeju Oceans", "/assets/jeju/jeju-oceans-logo.webp"],
   ["jeju-lingfung", "LingFung", "/assets/opponent-placeholder.png"],
-  ["jeju-pegasus", "Pegasus", "/assets/jeju/pegasus-logo.png"],
-  ["jeju-jeju-dolphins", "Jeju Dolphins", "/assets/jeju/jeju-dolphins-logo.png"],
-  ["jeju-merlion-men", "Merlion Men", "/assets/jeju/merlion-men-logo.png"],
-  ["jeju-shanghai-jingwu", "ShangHai Jingwu", "/assets/jeju/shanghai-jingwu-logo.png"],
-  ["jeju-shinil-fc", "SHINIL FC", "/assets/jeju/shinil-fc-logo.png"],
-  ["jeju-daykey", "Daykey", "/assets/jeju/daykey-logo.png"],
-  ["jeju-mars", "Mars", "/assets/jeju/mars-logo.png"],
-  ["jeju-ntu-men-s-blue", "NTU Men's Blue", "/assets/jeju/ntu-men-s-blue-logo.png"],
-  ["jeju-jeju-blue-dolphins", "Jeju Blue Dolphins", "/assets/jeju/jeju-blue-dolphins-logo.png"],
-  ["jeju-keplites", "Keplites", "/assets/jeju/keplites-logo.png"],
-  ["jeju-tamla-devil-w", "Tamla Devil (W)", "/assets/jeju/tamla-devil-w-logo.png"],
-  ["jeju-pegasus-w", "Pegasus (W)", "/assets/jeju/pegasus-w-logo.png"],
-  ["jeju-shanghai-jingwu-w", "Shanghai JingWu (W)", "/assets/jeju/shanghai-jingwu-w-logo.png"],
-  ["jeju-sojeju", "SoJeju", "/assets/jeju/sojeju-logo.png"],
-  ["jeju-team-leopard-w", "Team Leopard (W)", "/assets/jeju/team-leopard-w-logo.png"],
-  ["jeju-fed-fat", "FED FAT", "/assets/jeju/fed-fat-logo.png"],
-  ["jeju-ntu-women-s", "NTU Women's", "/assets/jeju/ntu-women-s-logo.png"],
-  ["jeju-overflow", "Overflow", "/assets/jeju/overflow-logo.png"],
-  ["jeju-t-allies", "T_Allies", "/assets/jeju/t-allies-logo.png"],
-  ["jeju-team-shinseong", "Team Shinseong", "/assets/jeju/team-shinseong-logo.png"],
+  ["jeju-pegasus", "Pegasus", "/assets/jeju/pegasus-logo.webp"],
+  ["jeju-jeju-dolphins", "Jeju Dolphins", "/assets/jeju/jeju-dolphins-logo.webp"],
+  ["jeju-merlion-men", "Merlion Men", "/assets/jeju/merlion-men-logo.webp"],
+  ["jeju-shanghai-jingwu", "ShangHai Jingwu", "/assets/jeju/shanghai-jingwu-logo.webp"],
+  ["jeju-shinil-fc", "SHINIL FC", "/assets/jeju/shinil-fc-logo.webp"],
+  ["jeju-daykey", "Daykey", "/assets/jeju/daykey-logo.webp"],
+  ["jeju-mars", "Mars", "/assets/jeju/mars-logo.webp"],
+  ["jeju-ntu-men-s-blue", "NTU Men's Blue", "/assets/jeju/ntu-men-s-blue-logo.webp"],
+  ["jeju-jeju-blue-dolphins", "Jeju Blue Dolphins", "/assets/jeju/jeju-blue-dolphins-logo.webp"],
+  ["jeju-keplites", "Keplites", "/assets/jeju/keplites-logo.webp"],
+  ["jeju-tamla-devil-w", "Tamla Devil (W)", "/assets/jeju/tamla-devil-w-logo.webp"],
+  ["jeju-pegasus-w", "Pegasus (W)", "/assets/jeju/pegasus-w-logo.webp"],
+  ["jeju-shanghai-jingwu-w", "Shanghai JingWu (W)", "/assets/jeju/shanghai-jingwu-w-logo.webp"],
+  ["jeju-sojeju", "SoJeju", "/assets/jeju/sojeju-logo.webp"],
+  ["jeju-team-leopard-w", "Team Leopard (W)", "/assets/jeju/team-leopard-w-logo.webp"],
+  ["jeju-fed-fat", "FED FAT", "/assets/jeju/fed-fat-logo.webp"],
+  ["jeju-ntu-women-s", "NTU Women's", "/assets/jeju/ntu-women-s-logo.webp"],
+  ["jeju-overflow", "Overflow", "/assets/jeju/overflow-logo.webp"],
+  ["jeju-t-allies", "T_Allies", "/assets/jeju/t-allies-logo.webp"],
+  ["jeju-team-shinseong", "Team Shinseong", "/assets/jeju/team-shinseong-logo.webp"],
 ];
 
 export async function ensureSchema(db: D1Database) {
@@ -107,7 +132,7 @@ export async function ensureSchema(db: D1Database) {
         VALUES (?, ?, ?, ?, ?)`).bind(
         "jeju-open-2026",
         "2026 제주국제오픈",
-        "/assets/jeju/jeju-open-logo.png",
+        "/assets/jeju/jeju-open-logo.webp",
         "2026 제주국제오픈",
         "플로어볼 대회",
       ),
