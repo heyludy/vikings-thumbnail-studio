@@ -30,6 +30,8 @@ type Fixture = {
   kickoff: string;
   venue: string;
   isOurMatch: boolean;
+  ourScore: string;
+  theirScore: string;
 };
 
 type Opponent = {
@@ -38,6 +40,19 @@ type Opponent = {
   logoUrl: string;
   circularFrame: boolean;
   division: Division;
+};
+
+// 다운로드할 때마다 남는 기록. 사진은 보관하지 않으므로 설정만 되살린다.
+type ThumbnailRecord = {
+  id: string;
+  project_id: string;
+  opponent_id: string;
+  theme: string;
+  stage_text: string;
+  our_score: string | null;
+  their_score: string | null;
+  photo_name: string | null;
+  created_at: string;
 };
 
 type LoadedImage = {
@@ -644,6 +659,8 @@ export default function ThumbnailStudio() {
   const [opponentLogoFile, setOpponentLogoFile] = useState<File | null>(null);
   const [logoImages, setLogoImages] = useState<Record<string, HTMLImageElement>>({});
   const [fontsVersion, setFontsVersion] = useState(0);
+  const [history, setHistory] = useState<ThumbnailRecord[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [fixtureData, setFixtureData] = useState<{ key: string; fixtures: Fixture[]; note: string } | null>(null);
   const [selectedFixtureId, setSelectedFixtureId] = useState("");
   const [projectFixtureUrl, setProjectFixtureUrl] = useState("");
@@ -666,7 +683,10 @@ export default function ThumbnailStudio() {
   );
 
   // 두 칸 중 하나만 채워도 결과 썸네일로 그린다.
-  const score = ourScore !== "" || theirScore !== "" ? { ours: ourScore, theirs: theirScore } : null;
+  const score = useMemo(
+    () => (ourScore !== "" || theirScore !== "" ? { ours: ourScore, theirs: theirScore } : null),
+    [ourScore, theirScore],
+  );
   const readScore = (value: string) => value.replace(/[^0-9]/g, "").slice(0, 2);
 
   const logoUrls = useMemo(() => {
@@ -756,7 +776,35 @@ export default function ThumbnailStudio() {
       offsetX,
       offsetY,
     });
-  }, [fontsVersion, gamePhoto, logoImages, offsetX, offsetY, score?.ours, score?.theirs, selectedOpponent, selectedProject, stageText, theme, view, zoom]);
+  }, [fontsVersion, gamePhoto, logoImages, offsetX, offsetY, score, selectedOpponent, selectedProject, stageText, theme, view, zoom]);
+
+  const refreshHistory = useCallback(async () => {
+    try {
+      const response = await fetch("/api/thumbnails");
+      if (!response.ok) return;
+      const data = (await response.json()) as { thumbnails: ThumbnailRecord[] };
+      setHistory(data.thumbnails);
+    } catch {
+      // 기록은 보조 기능이라 실패해도 편집을 막지 않는다.
+    }
+  }, []);
+
+  const openRecord = (record: ThumbnailRecord) => {
+    const project = projects.find((item) => item.id === record.project_id);
+    const opponent = opponents.find((item) => item.id === record.opponent_id);
+    if (project) setSelectedProjectId(project.id);
+    if (record.theme === "men" || record.theme === "women") setTheme(record.theme);
+    if (opponent) setSelectedOpponentId(opponent.id);
+    setStageText(record.stage_text);
+    setOurScore(record.our_score ?? "");
+    setTheirScore(record.their_score ?? "");
+    setSelectedFixtureId("");
+    setShowHistory(false);
+    setView("editor");
+    setStatus(opponent
+      ? `${record.stage_text || "지난 썸네일"} 설정을 불러왔습니다. 사진은 다시 올려주세요.`
+      : "상대팀이 삭제돼 설정 일부만 불러왔습니다.");
+  };
 
   // 대회 사이트에서 우리 팀 경기 일정을 받아온다. 테마(남/여)에 맞는 부서만 가져온다.
   const fixtureUrl = view === "editor" ? selectedProject.fixtureUrl ?? "" : "";
@@ -801,11 +849,15 @@ export default function ThumbnailStudio() {
     const fixture = fixtures.find((item) => item.id === fixtureId);
     if (!fixture) return;
     if (fixture.stageText) setStageText(fixture.stageText);
+    // 결과가 올라온 경기면 스코어까지 채우고, 아직이면 예고 썸네일로 되돌린다.
+    setOurScore(fixture.ourScore);
+    setTheirScore(fixture.theirScore);
     const matched = visibleOpponents.find((opponent) => opponent.name === fixture.opponentName)
       ?? opponents.find((opponent) => opponent.name === fixture.opponentName);
+    const scoreNote = fixture.ourScore ? ` (${fixture.ourScore}-${fixture.theirScore})` : "";
     if (matched) {
       setSelectedOpponentId(matched.id);
-      setStatus(`${fixture.kickoff} ${fixture.opponentName} 경기로 맞췄습니다.`);
+      setStatus(`${fixture.kickoff} ${fixture.opponentName} 경기로 맞췄습니다.${scoreNote}`);
       return;
     }
     setStatus(`상대팀 "${fixture.opponentName}" 이 목록에 없습니다. 상대팀 관리에서 추가하세요.`);
@@ -1172,6 +1224,7 @@ export default function ThumbnailStudio() {
         photoName: gamePhoto?.fileName ?? null,
       }),
     });
+    void refreshHistory();
     setStatus(saved ? "1920x1080 PNG 저장 완료" : "1920x1080 PNG 다운로드 생성 완료");
   };
 
@@ -1236,9 +1289,54 @@ export default function ThumbnailStudio() {
             <p className="home-subtitle">대회를 선택하고 경기 썸네일을 만들어보세요.</p>
           </div>
           <div className="home-actions">
+            <button
+              type="button"
+              onClick={() => {
+                const opening = !showHistory;
+                setShowHistory(opening);
+                if (opening) void refreshHistory();
+              }}
+            >
+              최근 작업
+            </button>
             <button type="button" onClick={() => setShowOpponentManager((value) => !value)}>상대팀 관리</button>
           </div>
         </header>
+
+        {showHistory ? (
+          <section className="manager-panel" aria-label="최근 만든 썸네일">
+            <div className="section-title">
+              <h2>최근 만든 썸네일</h2>
+              <button type="button" onClick={() => setShowHistory(false)}>닫기</button>
+            </div>
+            {history.length ? (
+              <div className="history-list">
+                {history.map((record) => {
+                  const project = projects.find((item) => item.id === record.project_id);
+                  const opponent = opponents.find((item) => item.id === record.opponent_id);
+                  const scoreLabel = record.our_score || record.their_score
+                    ? `${record.our_score || 0} : ${record.their_score || 0}`
+                    : "예고";
+                  return (
+                    <button key={record.id} type="button" className="history-row" onClick={() => openRecord(record)}>
+                      <span className="history-when">{record.created_at.slice(5, 16)}</span>
+                      <span className="history-main">
+                        <strong>{record.stage_text || "경기명 없음"}</strong>
+                        <span>
+                          {`${project?.name ?? "삭제된 대회"} · ${opponent?.name ?? "삭제된 상대팀"}`}
+                          {` · ${DIVISION_LABELS[record.theme === "women" ? "women" : "men"]}`}
+                        </span>
+                      </span>
+                      <span className="history-score">{scoreLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="field-note">PNG 를 저장하면 여기에 쌓입니다. 눌러서 같은 설정으로 다시 만들 수 있습니다.</p>
+            )}
+          </section>
+        ) : null}
 
         {showOpponentManager ? opponentManager : null}
 
@@ -1327,7 +1425,7 @@ export default function ThumbnailStudio() {
               <option value="">직접 입력</option>
               {fixtures.map((fixture) => (
                 <option key={fixture.id} value={fixture.id}>
-                  {`${fixture.kickoff} · ${fixture.label} · vs ${fixture.opponentName}`}
+                  {`${fixture.kickoff} · ${fixture.label} · vs ${fixture.opponentName}${fixture.ourScore ? ` · ${fixture.ourScore}-${fixture.theirScore}` : ""}`}
                 </option>
               ))}
             </select>

@@ -1,82 +1,11 @@
 import { ensureSchema, getBindings, jsonError, normalizeDivision, OUR_TEAM_NAMES } from "../storage";
+import { Fixture, parseFixtures, withStageText } from "./parse";
 
 export const runtime = "edge";
 
 // 경기 일정을 가져올 수 있는 사이트. 임의 주소를 대신 호출해주는 통로가 되지 않도록 제한한다.
 const allowedHosts = new Set(["flovus.info", "www.flovus.info"]);
 const CACHE_TTL_MS = 10 * 60 * 1000;
-
-export type Fixture = {
-  id: string;
-  label: string;
-  stageText: string;
-  opponentName: string;
-  homeTeam: string;
-  awayTeam: string;
-  kickoff: string;
-  venue: string;
-  isOurMatch: boolean;
-};
-
-const stripTags = (value: string) => value.replace(/<[^>]*>/g, "");
-
-const decode = (value: string) => stripTags(value)
-  .replace(/&#39;/g, "'")
-  .replace(/&quot;/g, '"')
-  .replace(/&amp;/g, "&")
-  .replace(/&lt;/g, "<")
-  .replace(/&gt;/g, ">")
-  .replace(/&nbsp;/g, " ")
-  .replace(/\s+/g, " ")
-  .trim();
-
-const isOurTeam = (name: string) => OUR_TEAM_NAMES.some((team) => name === team);
-
-/** 조별 경기 카드에서 경기 정보를 읽는다. */
-export function parseFixtures(html: string): Fixture[] {
-  const fixtures: Fixture[] = [];
-  const cardPattern = /<a href="\/matches\/(\d+)"([\s\S]*?)<\/a>/g;
-  let card: RegExpExecArray | null;
-  while ((card = cardPattern.exec(html)) !== null) {
-    const [, id, body] = card;
-    const labelMatch = body.match(/<div class="text-\[11px\][^"]*">([\s\S]*?)<\/div>/);
-    const teams = [...body.matchAll(/<span class="min-w-0[^"]*">([\s\S]*?)<\/span>/g)].map((match) => decode(match[1]));
-    const metaMatches = [...body.matchAll(/<div class="mt-2 text-\[11px\][^"]*">([\s\S]*?)<\/div>/g)];
-    if (teams.length < 2) continue;
-
-    const label = labelMatch ? decode(labelMatch[1]) : "";
-    const meta = metaMatches.length ? decode(metaMatches[metaMatches.length - 1][1]) : "";
-    const [kickoff, venue] = meta.split("·").map((part) => part.trim());
-    const [homeTeam, awayTeam] = teams;
-    const ourSide = isOurTeam(homeTeam) ? homeTeam : isOurTeam(awayTeam) ? awayTeam : null;
-    fixtures.push({
-      id,
-      label,
-      stageText: "",
-      opponentName: ourSide === homeTeam ? awayTeam : homeTeam,
-      homeTeam,
-      awayTeam,
-      kickoff: kickoff ?? "",
-      venue: venue ?? "",
-      isOurMatch: ourSide !== null,
-    });
-  }
-  return fixtures;
-}
-
-/** 우리 팀 경기에 "[예선 D조 2경기]" 같은 경기명을 붙인다. 순번은 시작 시간 순서. */
-export function withStageText(fixtures: Fixture[]): Fixture[] {
-  const counters = new Map<string, number>();
-  return fixtures.map((fixture) => {
-    const group = fixture.label.match(/([A-Z]조)/)?.[1];
-    if (fixture.label.includes("예선") && group) {
-      const order = (counters.get(group) ?? 0) + 1;
-      counters.set(group, order);
-      return { ...fixture, stageText: `[예선 ${group} ${order}경기]` };
-    }
-    return { ...fixture, stageText: fixture.label ? `[${fixture.label}]` : "" };
-  });
-}
 
 async function readCache(db: D1Database | undefined, key: string) {
   if (!db) return null;
@@ -127,7 +56,7 @@ export async function GET(request: Request) {
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) throw new Error(`schedule request failed: ${response.status}`);
-    const fixtures = withStageText(parseFixtures(await response.text()));
+    const fixtures = withStageText(parseFixtures(await response.text(), OUR_TEAM_NAMES));
     await writeCache(DB, key, fixtures);
     return Response.json({ fixtures, source: key, cached: false });
   } catch (error) {

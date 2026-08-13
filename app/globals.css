@@ -811,3 +811,65 @@ canvas {
   font-size: 20px;
   font-weight: 700;
 }
+
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .04);
+  color: var(--ink);
+  padding: 14px 18px;
+  text-align: left;
+}
+
+.history-row:hover,
+.history-row:focus-visible {
+  border-color: rgba(154, 130, 255, .55);
+  background: rgba(116, 87, 255, .12);
+}
+
+.history-when {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-main {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.history-main strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.history-main > span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-score {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .1);
+  color: var(--muted-strong);
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
