@@ -5,7 +5,7 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useSta
 type TeamTheme = "men" | "women";
 type Division = TeamTheme | "both";
 
-const VIKINGS_LOGO_URL = "/assets/vikings-logo-v2.webp";
+const VIKINGS_LOGO_URL = "/assets/vikings-logo-v3.webp";
 const DIVISION_LABELS: Record<Division, string> = { men: "남자부", women: "여자부", both: "공통" };
 
 type Project = {
