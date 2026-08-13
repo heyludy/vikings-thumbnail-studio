@@ -73,6 +73,14 @@ export async function ensureSchema(db: D1Database) {
     await db.batch([
       db.prepare(`INSERT OR IGNORE INTO projects (id, name, logo_url, tournament_line_1, tournament_line_2)
         VALUES (?, ?, ?, ?, ?)`).bind(
+        "jeju-open",
+        "제주오픈대회",
+        "/assets/jeju-open-logo.png",
+        "제10회 제주오픈",
+        "국제플로어볼대회",
+      ),
+      db.prepare(`INSERT OR IGNORE INTO projects (id, name, logo_url, tournament_line_1, tournament_line_2)
+        VALUES (?, ?, ?, ?, ?)`).bind(
         "sample-project",
         "챌린지컵 샘플",
         "/assets/sample-tournament-logo.png",

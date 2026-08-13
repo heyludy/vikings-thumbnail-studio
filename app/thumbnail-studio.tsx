@@ -28,11 +28,11 @@ type LoadedImage = {
 const WIDTH = 1920;
 const HEIGHT = 1080;
 const DEFAULT_PROJECT: Project = {
-  id: "sample-project",
-  name: "챌린지컵 샘플",
-  logoUrl: "/assets/sample-tournament-logo.png",
-  tournamentLine1: "대전광역시 플로어볼",
-  tournamentLine2: "챌린지컵 대회",
+  id: "jeju-open",
+  name: "제주오픈대회",
+  logoUrl: "/assets/jeju-open-logo.png",
+  tournamentLine1: "제10회 제주오픈",
+  tournamentLine2: "국제플로어볼대회",
 };
 const DEFAULT_OPPONENTS: Opponent[] = [
   { id: "incheon-sniper", name: "인천 스나이퍼", logoUrl: "/assets/incheon-sniper-logo.png", circularFrame: true },
@@ -383,8 +383,8 @@ export default function ThumbnailStudio() {
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
   const [projectName, setProjectName] = useState("");
-  const [projectLine1, setProjectLine1] = useState("대전광역시 플로어볼");
-  const [projectLine2, setProjectLine2] = useState("챌린지컵 대회");
+  const [projectLine1, setProjectLine1] = useState(DEFAULT_PROJECT.tournamentLine1);
+  const [projectLine2, setProjectLine2] = useState(DEFAULT_PROJECT.tournamentLine2);
   const [projectLogoFile, setProjectLogoFile] = useState<File | null>(null);
   const [opponentName, setOpponentName] = useState("");
   const [opponentLogoFile, setOpponentLogoFile] = useState<File | null>(null);
@@ -485,8 +485,8 @@ export default function ThumbnailStudio() {
 
   const resetProjectForm = () => {
     setProjectName("");
-    setProjectLine1("대전광역시 플로어볼");
-    setProjectLine2("챌린지컵 대회");
+    setProjectLine1(DEFAULT_PROJECT.tournamentLine1);
+    setProjectLine2(DEFAULT_PROJECT.tournamentLine2);
     setProjectLogoFile(null);
     setEditingProjectId(null);
   };
