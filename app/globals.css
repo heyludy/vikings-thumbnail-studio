@@ -777,3 +777,20 @@ canvas {
     width: 100%;
   }
 }
+
+/* 미리보기에서 사진을 끌어 옮길 때 화면이 같이 스크롤되지 않게 한다. */
+.canvas-frame canvas.draggable {
+  touch-action: none;
+  cursor: grab;
+}
+
+.canvas-frame canvas.draggable:active {
+  cursor: grabbing;
+}
+
+.field-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}

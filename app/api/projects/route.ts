@@ -6,13 +6,14 @@ export async function GET() {
   const { DB } = getBindings();
   if (!DB) return Response.json({ projects: [] });
   await ensureSchema(DB);
-  const result = await DB.prepare(`SELECT id, name, logo_url, tournament_line_1, tournament_line_2
+  const result = await DB.prepare(`SELECT id, name, logo_url, tournament_line_1, tournament_line_2, fixture_url
     FROM projects ORDER BY updated_at DESC, created_at DESC`).all<{
     id: string;
     name: string;
     logo_url: string;
     tournament_line_1: string;
     tournament_line_2: string;
+    fixture_url: string | null;
   }>();
   return Response.json({ projects: result.results.map(normalizeProject) });
 }
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
     logoUrl?: string;
     tournamentLine1?: string;
     tournamentLine2?: string;
+    fixtureUrl?: string;
   };
   const name = payload.name?.trim();
   const logoUrl = payload.logoUrl?.trim();
@@ -34,9 +36,10 @@ export async function POST(request: Request) {
 
   await ensureSchema(DB);
   const id = createId("project");
-  await DB.prepare(`INSERT INTO projects (id, name, logo_url, tournament_line_1, tournament_line_2)
-    VALUES (?, ?, ?, ?, ?)`).bind(id, name, logoUrl, tournamentLine1, tournamentLine2).run();
+  const fixtureUrl = payload.fixtureUrl?.trim() || null;
+  await DB.prepare(`INSERT INTO projects (id, name, logo_url, tournament_line_1, tournament_line_2, fixture_url)
+    VALUES (?, ?, ?, ?, ?, ?)`).bind(id, name, logoUrl, tournamentLine1, tournamentLine2, fixtureUrl).run();
   return Response.json({
-    project: { id, name, logoUrl, tournamentLine1, tournamentLine2 },
+    project: { id, name, logoUrl, tournamentLine1, tournamentLine2, fixtureUrl },
   }, { status: 201 });
 }

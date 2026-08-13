@@ -16,6 +16,20 @@ type Project = {
   logoUrl: string;
   tournamentLine1: string;
   tournamentLine2: string;
+  fixtureUrl?: string | null;
+};
+
+// /api/fixtures 가 대회 사이트에서 읽어오는 경기 한 건.
+type Fixture = {
+  id: string;
+  label: string;
+  stageText: string;
+  opponentName: string;
+  homeTeam: string;
+  awayTeam: string;
+  kickoff: string;
+  venue: string;
+  isOurMatch: boolean;
 };
 
 type Opponent = {
@@ -40,12 +54,19 @@ const SPLIT_BOTTOM = 760;
 const panelEdgeX = (y: number) => SPLIT_TOP - (SPLIT_TOP - SPLIT_BOTTOM) * (y / HEIGHT);
 // 그 높이에서의 패널 가로 중앙. 고정 좌표로 그리면 아래쪽 줄이 오른쪽으로 밀려 보인다.
 const panelCenterX = (y: number) => panelEdgeX(y) / 2;
+// 사진 이동/확대 한계. 슬라이더와 손가락 조작이 같은 범위를 쓴다.
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 2.4;
+const OFFSET_X_LIMIT = 420;
+const OFFSET_Y_LIMIT = 320;
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const JEJU_PROJECT: Project = {
   id: "jeju-open-2026",
   name: "2026 제주국제오픈",
   logoUrl: "/assets/jeju/jeju-open-logo.webp",
   tournamentLine1: "2026 제주국제오픈",
   tournamentLine2: "플로어볼 대회",
+  fixtureUrl: "https://flovus.info/competitions/6",
 };
 const SAMPLE_PROJECT: Project = {
   id: "sample-project",
@@ -496,6 +517,9 @@ export default function ThumbnailStudio() {
   const [opponentLogoFile, setOpponentLogoFile] = useState<File | null>(null);
   const [logoImages, setLogoImages] = useState<Record<string, HTMLImageElement>>({});
   const [fontsVersion, setFontsVersion] = useState(0);
+  const [fixtureData, setFixtureData] = useState<{ key: string; fixtures: Fixture[]; note: string } | null>(null);
+  const [selectedFixtureId, setSelectedFixtureId] = useState("");
+  const [projectFixtureUrl, setProjectFixtureUrl] = useState("");
   const [status, setStatus] = useState("준비 완료");
 
   const selectedProject = useMemo(
@@ -602,6 +626,145 @@ export default function ThumbnailStudio() {
     });
   }, [fontsVersion, gamePhoto, logoImages, offsetX, offsetY, selectedOpponent, selectedProject, stageText, theme, view, zoom]);
 
+  // 대회 사이트에서 우리 팀 경기 일정을 받아온다. 테마(남/여)에 맞는 부서만 가져온다.
+  const fixtureUrl = view === "editor" ? selectedProject.fixtureUrl ?? "" : "";
+  const fixtureKey = fixtureUrl ? `${theme}|${fixtureUrl}` : "";
+  const loadedFixtures = fixtureData?.key === fixtureKey ? fixtureData : null;
+  // 불러온 목록이 지금 보고 있는 부서의 것이 아니면 아직 로딩 중이다.
+  const fixtures = loadedFixtures?.fixtures ?? [];
+  const fixtureNote = fixtureKey ? loadedFixtures?.note ?? "경기 일정 불러오는 중" : "";
+
+  useEffect(() => {
+    if (!fixtureUrl) return;
+    let cancelled = false;
+    fetch(`/api/fixtures?division=${theme}&url=${encodeURIComponent(fixtureUrl)}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error("일정을 불러오지 못했습니다.");
+        return (await response.json()) as { fixtures: Fixture[]; stale?: boolean };
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const ours = data.fixtures.filter((fixture) => fixture.isOurMatch);
+        setFixtureData({
+          key: fixtureKey,
+          fixtures: ours,
+          note: ours.length
+            ? `${ours.length}경기 불러옴${data.stale ? " (지난번에 받아둔 일정)" : ""}`
+            : "일정에 우리 팀 경기가 아직 없습니다.",
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFixtureData({ key: fixtureKey, fixtures: [], note: "일정을 불러오지 못했습니다. 직접 입력하세요." });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fixtureKey, fixtureUrl, theme]);
+
+  const selectedFixture = fixtures.find((fixture) => fixture.id === selectedFixtureId) ?? null;
+
+  const applyFixture = (fixtureId: string) => {
+    setSelectedFixtureId(fixtureId);
+    const fixture = fixtures.find((item) => item.id === fixtureId);
+    if (!fixture) return;
+    if (fixture.stageText) setStageText(fixture.stageText);
+    const matched = visibleOpponents.find((opponent) => opponent.name === fixture.opponentName)
+      ?? opponents.find((opponent) => opponent.name === fixture.opponentName);
+    if (matched) {
+      setSelectedOpponentId(matched.id);
+      setStatus(`${fixture.kickoff} ${fixture.opponentName} 경기로 맞췄습니다.`);
+      return;
+    }
+    setStatus(`상대팀 "${fixture.opponentName}" 이 목록에 없습니다. 상대팀 관리에서 추가하세요.`);
+  };
+
+  // 미리보기에서 사진을 손가락(또는 마우스)으로 옮기고 확대한다.
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const gestureRef = useRef<{
+    offsetX: number;
+    offsetY: number;
+    zoom: number;
+    centerX: number;
+    centerY: number;
+    distance: number;
+  } | null>(null);
+
+  const beginGesture = () => {
+    const points = [...pointersRef.current.values()];
+    if (!points.length) {
+      gestureRef.current = null;
+      return;
+    }
+    const centerX = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+    const centerY = points.reduce((sum, point) => sum + point.y, 0) / points.length;
+    const distance = points.length > 1
+      ? Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y)
+      : 0;
+    gestureRef.current = { offsetX, offsetY, zoom, centerX, centerY, distance };
+  };
+
+  // 화면에 표시된 크기와 실제 1920px 캔버스의 비율.
+  const canvasScale = () => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    return rect?.width ? WIDTH / rect.width : 1;
+  };
+
+  const onCanvasPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!gamePhoto) return;
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // 포인터를 붙잡지 못해도 이동 자체는 동작한다.
+    }
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    beginGesture();
+  };
+
+  const onCanvasPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!gamePhoto || !pointersRef.current.has(event.pointerId)) return;
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const gesture = gestureRef.current;
+    if (!gesture) return;
+    const points = [...pointersRef.current.values()];
+    const scale = canvasScale();
+    const centerX = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+    const centerY = points.reduce((sum, point) => sum + point.y, 0) / points.length;
+    setOffsetX(clamp(gesture.offsetX + (centerX - gesture.centerX) * scale, -OFFSET_X_LIMIT, OFFSET_X_LIMIT));
+    setOffsetY(clamp(gesture.offsetY + (centerY - gesture.centerY) * scale, -OFFSET_Y_LIMIT, OFFSET_Y_LIMIT));
+    if (points.length > 1 && gesture.distance > 0) {
+      const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+      setZoom(clamp(gesture.zoom * (distance / gesture.distance), ZOOM_MIN, ZOOM_MAX));
+    }
+  };
+
+  const onCanvasPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!pointersRef.current.delete(event.pointerId)) return;
+    // 손가락 하나를 떼도 남은 손가락으로 계속 움직일 수 있게 기준을 다시 잡는다.
+    beginGesture();
+  };
+
+  // React 의 onWheel 은 passive 로 붙어서 preventDefault 가 통하지 않는다.
+  // 확대할 때 화면이 같이 스크롤되지 않도록 직접 등록한다.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || view !== "editor") return;
+    const onWheel = (event: WheelEvent) => {
+      if (!gamePhoto) return;
+      event.preventDefault();
+      setZoom((current) => clamp(current * (event.deltaY > 0 ? 0.94 : 1.06), ZOOM_MIN, ZOOM_MAX));
+    };
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
+  }, [gamePhoto, view]);
+
+  const resetPhotoPlacement = () => {
+    setZoom(1);
+    setOffsetX(0);
+    setOffsetY(0);
+    setStatus("사진 위치를 초기화했습니다.");
+  };
+
   const uploadStoredImage = async (file: File, folder: string) => {
     const form = new FormData();
     const uploadFile = await compressLogoFile(file);
@@ -620,6 +783,7 @@ export default function ThumbnailStudio() {
     setProjectName("");
     setProjectLine1("대전광역시 플로어볼");
     setProjectLine2("챌린지컵 대회");
+    setProjectFixtureUrl("");
     setProjectLogoFile(null);
     setEditingProjectId(null);
   };
@@ -639,6 +803,7 @@ export default function ThumbnailStudio() {
     setProjectName(project.name);
     setProjectLine1(project.tournamentLine1);
     setProjectLine2(project.tournamentLine2);
+    setProjectFixtureUrl(project.fixtureUrl ?? "");
     setProjectLogoFile(null);
     setShowProjectForm(true);
     setOpenProjectMenuId(null);
@@ -664,6 +829,7 @@ export default function ThumbnailStudio() {
         logoUrl,
         tournamentLine1: projectLine1,
         tournamentLine2: projectLine2,
+        fixtureUrl: projectFixtureUrl.trim() || null,
       };
       const response = await fetch(editingProject ? `/api/projects/${editingProject.id}` : "/api/projects", {
         method: editingProject ? "PATCH" : "POST",
@@ -977,6 +1143,11 @@ export default function ThumbnailStudio() {
             <input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="프로젝트명" />
             <input value={projectLine1} onChange={(event) => setProjectLine1(event.target.value)} placeholder="대회명 1줄" />
             <input value={projectLine2} onChange={(event) => setProjectLine2(event.target.value)} placeholder="대회명 2줄" />
+            <input
+              value={projectFixtureUrl}
+              onChange={(event) => setProjectFixtureUrl(event.target.value)}
+              placeholder="경기 일정 주소 (flovus.info 대회 페이지, 선택)"
+            />
             <label className="file-button">
               <span>{projectLogoFile ? projectLogoFile.name : editingProjectId ? "새 로고 선택 (선택)" : "대회 로고 업로드"}</span>
               <input type="file" accept="image/*" onChange={(event) => setProjectLogoFile(event.target.files?.[0] ?? null)} />
@@ -1012,6 +1183,21 @@ export default function ThumbnailStudio() {
           </div>
         </div>
 
+        {selectedProject.fixtureUrl ? (
+          <div className="control-block">
+            <label htmlFor="fixture">경기 불러오기</label>
+            <select id="fixture" value={selectedFixture?.id ?? ""} onChange={(event) => applyFixture(event.target.value)}>
+              <option value="">직접 입력</option>
+              {fixtures.map((fixture) => (
+                <option key={fixture.id} value={fixture.id}>
+                  {`${fixture.kickoff} · ${fixture.label} · vs ${fixture.opponentName}`}
+                </option>
+              ))}
+            </select>
+            {fixtureNote ? <p className="field-note">{fixtureNote}</p> : null}
+          </div>
+        ) : null}
+
         <div className="control-block">
           <label htmlFor="stage">경기명</label>
           <input id="stage" value={stageText} onChange={(event) => setStageText(event.target.value)} placeholder="[예선 4경기]" />
@@ -1031,6 +1217,9 @@ export default function ThumbnailStudio() {
             <span>오른쪽 경기 사진 업로드</span>
             <input type="file" accept="image/*" onChange={onGamePhotoChange} />
           </label>
+          {gamePhoto ? (
+            <p className="field-note">사진을 끌어서 옮기고, 두 손가락으로 벌려 확대할 수 있습니다.</p>
+          ) : null}
         </div>
 
         <div className="slider-grid">
@@ -1039,13 +1228,25 @@ export default function ThumbnailStudio() {
           <label>Y <input type="range" min="-320" max="320" step="1" value={offsetY} onChange={(event) => setOffsetY(Number(event.target.value))} /></label>
         </div>
 
+        <button className="secondary-action" type="button" onClick={resetPhotoPlacement} disabled={!gamePhoto}>
+          사진 위치 초기화
+        </button>
+
         <button className="download" type="button" onClick={downloadPng}>PNG 다운로드</button>
         <p className="status">{status}</p>
       </section>
 
       <section className="preview-wrap" aria-label="썸네일 미리보기">
         <div className="canvas-frame">
-          <canvas ref={canvasRef} aria-label="1920x1080 썸네일 미리보기" />
+          <canvas
+            ref={canvasRef}
+            aria-label="1920x1080 썸네일 미리보기"
+            className={gamePhoto ? "draggable" : ""}
+            onPointerDown={onCanvasPointerDown}
+            onPointerMove={onCanvasPointerMove}
+            onPointerUp={onCanvasPointerUp}
+            onPointerCancel={onCanvasPointerUp}
+          />
         </div>
       </section>
     </main>

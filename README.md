@@ -56,6 +56,20 @@ node scripts/seed-jeju.mjs https://vikings.ludia0602.workers.dev
 The script skips entries that already exist with a working logo, and falls back
 to inlined `data:` URLs when the deployment cannot serve uploaded images yet.
 
+## Match schedules
+
+A project can carry a `fixtureUrl` pointing at a flovus.info competition page.
+The editor then offers a match picker that fills in the match label and the
+opponent, so nothing has to be typed during a tournament.
+
+`GET /api/fixtures?division=men&url=<competition page>` reads the schedule
+server-side (the browser cannot: flovus sends no CORS headers), keeps the parsed
+result in D1 for ten minutes, and serves the last copy if the site is
+unreachable. Only `flovus.info` addresses are accepted, so the endpoint cannot
+be used to fetch arbitrary URLs. Only group-stage matches appear — the knockout
+bracket is rendered client-side on flovus, so those match names are typed by
+hand.
+
 ## Included Shape
 
 - edit site code under `app/`

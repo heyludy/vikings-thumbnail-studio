@@ -20,6 +20,7 @@ const PROJECT = {
   tournamentLine1: "2026 제주국제오픈",
   tournamentLine2: "플로어볼 대회",
   logo: "jeju-open-logo.webp",
+  fixtureUrl: "https://flovus.info/competitions/6",
 };
 
 // [상대팀명, 로고 파일명, 소속] — 남자부 16팀 + 여자부 13팀에서 Seoul Vikings 제외
@@ -127,14 +128,21 @@ if (!existingProject) {
     logoUrl,
     tournamentLine1: PROJECT.tournamentLine1,
     tournamentLine2: PROJECT.tournamentLine2,
+    fixtureUrl: PROJECT.fixtureUrl,
   });
   console.log(`프로젝트 생성: ${project.name} (${project.id})`);
-} else if (await logoUpToDate(existingProject.logoUrl, PROJECT.logo)) {
-  console.log(`프로젝트 "${PROJECT.name}" 이미 정상 등록됨 → 건너뜀`);
 } else {
-  const logoUrl = await resolveLogoUrl(PROJECT.logo, "project-logos");
-  await patchJson(`/api/projects/${existingProject.id}`, { logoUrl });
-  console.log(`프로젝트 로고 갱신: ${PROJECT.name}`);
+  const patch = {};
+  if (!(await logoUpToDate(existingProject.logoUrl, PROJECT.logo))) {
+    patch.logoUrl = await resolveLogoUrl(PROJECT.logo, "project-logos");
+  }
+  if (existingProject.fixtureUrl !== PROJECT.fixtureUrl) patch.fixtureUrl = PROJECT.fixtureUrl;
+  if (Object.keys(patch).length) {
+    await patchJson(`/api/projects/${existingProject.id}`, patch);
+    console.log(`프로젝트 갱신: ${PROJECT.name} (${Object.keys(patch).join(", ")})`);
+  } else {
+    console.log(`프로젝트 "${PROJECT.name}" 이미 최신 → 건너뜀`);
+  }
 }
 
 const { opponents } = await api("/api/opponents");
