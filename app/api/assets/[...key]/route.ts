@@ -22,10 +22,10 @@ export async function GET(_request: Request, context: { params: Promise<{ key: s
     .first<{ content_type: string; body: unknown }>();
   if (!asset) return jsonError("Asset not found.", 404);
 
-  const bytes = decodeAssetBody(asset.body);
-  if (!bytes.byteLength) return jsonError("Asset body is empty.", 404);
+  const body = decodeAssetBody(asset.body);
+  if (!body.byteLength) return jsonError("Asset body is empty.", 404);
 
-  return new Response(bytes, {
+  return new Response(body, {
     headers: {
       "content-type": asset.content_type,
       "cache-control": "public, max-age=31536000, immutable",

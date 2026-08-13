@@ -3,6 +3,10 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type TeamTheme = "men" | "women";
+type Division = TeamTheme | "both";
+
+const VIKINGS_LOGO_URL = "/assets/vikings-logo-v2.webp";
+const DIVISION_LABELS: Record<Division, string> = { men: "남자부", women: "여자부", both: "공통" };
 
 type Project = {
   id: string;
@@ -17,6 +21,7 @@ type Opponent = {
   name: string;
   logoUrl: string;
   circularFrame: boolean;
+  division: Division;
 };
 
 type LoadedImage = {
@@ -45,44 +50,44 @@ const DEFAULT_PROJECTS: Project[] = [JEJU_PROJECT, SAMPLE_PROJECT];
 const DEFAULT_PROJECT = DEFAULT_PROJECTS[0];
 // 2026 제주국제오픈 참가팀 (출처: https://flovus.info/competitions/6)
 const JEJU_OPPONENTS: Opponent[] = [
-  { id: "jeju-hong-kong-stars", name: "Hong Kong Stars", logoUrl: "/assets/jeju/hong-kong-stars-logo.webp", circularFrame: true },
-  { id: "jeju-ntu-men-s-white", name: "NTU Men's White", logoUrl: "/assets/jeju/ntu-men-s-white-logo.webp", circularFrame: true },
-  { id: "jeju-tamla-devil", name: "Tamla Devil", logoUrl: "/assets/jeju/tamla-devil-logo.webp", circularFrame: true },
-  { id: "jeju-team-leopard", name: "Team Leopard", logoUrl: "/assets/jeju/team-leopard-logo.webp", circularFrame: true },
-  { id: "jeju-astra", name: "ASTRA", logoUrl: "/assets/jeju/astra-logo.webp", circularFrame: true },
-  { id: "jeju-jeju-oceans", name: "Jeju Oceans", logoUrl: "/assets/jeju/jeju-oceans-logo.webp", circularFrame: true },
-  { id: "jeju-lingfung", name: "LingFung", logoUrl: "/assets/opponent-placeholder.png", circularFrame: true },
-  { id: "jeju-pegasus", name: "Pegasus", logoUrl: "/assets/jeju/pegasus-logo.webp", circularFrame: true },
-  { id: "jeju-jeju-dolphins", name: "Jeju Dolphins", logoUrl: "/assets/jeju/jeju-dolphins-logo.webp", circularFrame: true },
-  { id: "jeju-merlion-men", name: "Merlion Men", logoUrl: "/assets/jeju/merlion-men-logo.webp", circularFrame: true },
-  { id: "jeju-shanghai-jingwu", name: "ShangHai Jingwu", logoUrl: "/assets/jeju/shanghai-jingwu-logo.webp", circularFrame: true },
-  { id: "jeju-shinil-fc", name: "SHINIL FC", logoUrl: "/assets/jeju/shinil-fc-logo.webp", circularFrame: true },
-  { id: "jeju-daykey", name: "Daykey", logoUrl: "/assets/jeju/daykey-logo.webp", circularFrame: true },
-  { id: "jeju-mars", name: "Mars", logoUrl: "/assets/jeju/mars-logo.webp", circularFrame: true },
-  { id: "jeju-ntu-men-s-blue", name: "NTU Men's Blue", logoUrl: "/assets/jeju/ntu-men-s-blue-logo.webp", circularFrame: true },
-  { id: "jeju-jeju-blue-dolphins", name: "Jeju Blue Dolphins", logoUrl: "/assets/jeju/jeju-blue-dolphins-logo.webp", circularFrame: true },
-  { id: "jeju-keplites", name: "Keplites", logoUrl: "/assets/jeju/keplites-logo.webp", circularFrame: true },
-  { id: "jeju-tamla-devil-w", name: "Tamla Devil (W)", logoUrl: "/assets/jeju/tamla-devil-w-logo.webp", circularFrame: true },
-  { id: "jeju-pegasus-w", name: "Pegasus (W)", logoUrl: "/assets/jeju/pegasus-w-logo.webp", circularFrame: true },
-  { id: "jeju-shanghai-jingwu-w", name: "Shanghai JingWu (W)", logoUrl: "/assets/jeju/shanghai-jingwu-w-logo.webp", circularFrame: true },
-  { id: "jeju-sojeju", name: "SoJeju", logoUrl: "/assets/jeju/sojeju-logo.webp", circularFrame: true },
-  { id: "jeju-team-leopard-w", name: "Team Leopard (W)", logoUrl: "/assets/jeju/team-leopard-w-logo.webp", circularFrame: true },
-  { id: "jeju-fed-fat", name: "FED FAT", logoUrl: "/assets/jeju/fed-fat-logo.webp", circularFrame: true },
-  { id: "jeju-ntu-women-s", name: "NTU Women's", logoUrl: "/assets/jeju/ntu-women-s-logo.webp", circularFrame: true },
-  { id: "jeju-overflow", name: "Overflow", logoUrl: "/assets/jeju/overflow-logo.webp", circularFrame: true },
-  { id: "jeju-t-allies", name: "T_Allies", logoUrl: "/assets/jeju/t-allies-logo.webp", circularFrame: true },
-  { id: "jeju-team-shinseong", name: "Team Shinseong", logoUrl: "/assets/jeju/team-shinseong-logo.webp", circularFrame: true },
+  { id: "jeju-hong-kong-stars", name: "Hong Kong Stars", logoUrl: "/assets/jeju/hong-kong-stars-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-ntu-men-s-white", name: "NTU Men's White", logoUrl: "/assets/jeju/ntu-men-s-white-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-tamla-devil", name: "Tamla Devil", logoUrl: "/assets/jeju/tamla-devil-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-team-leopard", name: "Team Leopard", logoUrl: "/assets/jeju/team-leopard-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-astra", name: "ASTRA", logoUrl: "/assets/jeju/astra-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-jeju-oceans", name: "Jeju Oceans", logoUrl: "/assets/jeju/jeju-oceans-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-lingfung", name: "LingFung", logoUrl: "/assets/opponent-placeholder.png", circularFrame: true, division: "men" },
+  { id: "jeju-pegasus", name: "Pegasus", logoUrl: "/assets/jeju/pegasus-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-jeju-dolphins", name: "Jeju Dolphins", logoUrl: "/assets/jeju/jeju-dolphins-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-merlion-men", name: "Merlion Men", logoUrl: "/assets/jeju/merlion-men-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-shanghai-jingwu", name: "ShangHai Jingwu", logoUrl: "/assets/jeju/shanghai-jingwu-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-shinil-fc", name: "SHINIL FC", logoUrl: "/assets/jeju/shinil-fc-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-daykey", name: "Daykey", logoUrl: "/assets/jeju/daykey-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-mars", name: "Mars", logoUrl: "/assets/jeju/mars-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-ntu-men-s-blue", name: "NTU Men's Blue", logoUrl: "/assets/jeju/ntu-men-s-blue-logo.webp", circularFrame: true, division: "men" },
+  { id: "jeju-jeju-blue-dolphins", name: "Jeju Blue Dolphins", logoUrl: "/assets/jeju/jeju-blue-dolphins-logo.webp", circularFrame: true, division: "women" },
+  { id: "jeju-keplites", name: "Keplites", logoUrl: "/assets/jeju/keplites-logo.webp", circularFrame: true, division: "women" },
+  { id: "jeju-tamla-devil-w", name: "Tamla Devil (W)", logoUrl: "/assets/jeju/tamla-devil-w-logo.webp", circularFrame: true, division: "women" },
+  { id: "jeju-pegasus-w", name: "Pegasus (W)", logoUrl: "/assets/jeju/pegasus-w-logo.webp", circularFrame: true, division: "women" },
+  { id: "jeju-shanghai-jingwu-w", name: "Shanghai JingWu (W)", logoUrl: "/assets/jeju/shanghai-jingwu-w-logo.webp", circularFrame: true, division: "women" },
+  { id: "jeju-sojeju", name: "SoJeju", logoUrl: "/assets/jeju/sojeju-logo.webp", circularFrame: true, division: "women" },
+  { id: "jeju-team-leopard-w", name: "Team Leopard (W)", logoUrl: "/assets/jeju/team-leopard-w-logo.webp", circularFrame: true, division: "women" },
+  { id: "jeju-fed-fat", name: "FED FAT", logoUrl: "/assets/jeju/fed-fat-logo.webp", circularFrame: true, division: "women" },
+  { id: "jeju-ntu-women-s", name: "NTU Women's", logoUrl: "/assets/jeju/ntu-women-s-logo.webp", circularFrame: true, division: "women" },
+  { id: "jeju-overflow", name: "Overflow", logoUrl: "/assets/jeju/overflow-logo.webp", circularFrame: true, division: "women" },
+  { id: "jeju-t-allies", name: "T_Allies", logoUrl: "/assets/jeju/t-allies-logo.webp", circularFrame: true, division: "women" },
+  { id: "jeju-team-shinseong", name: "Team Shinseong", logoUrl: "/assets/jeju/team-shinseong-logo.webp", circularFrame: true, division: "women" },
 ];
 const DEFAULT_OPPONENTS: Opponent[] = [
   ...JEJU_OPPONENTS,
-  { id: "incheon-sniper", name: "인천 스나이퍼", logoUrl: "/assets/incheon-sniper-logo.png", circularFrame: true },
-  { id: "seoul-haechis", name: "서울 해치스", logoUrl: "/assets/seoul-haechis-logo.png", circularFrame: true },
-  { id: "seoul-ares", name: "서울 아레스", logoUrl: "/assets/seoul-ares-logo.png", circularFrame: true },
-  { id: "gyeryong-onekill-dragons", name: "계룡 원킬 드래곤즈", logoUrl: "/assets/gyeryong-onekill-dragons-logo.png", circularFrame: true },
-  { id: "gwangju-team-leopard", name: "광주 Team-Leopard", logoUrl: "/assets/gwangju-team-leopard-logo.png", circularFrame: true },
-  { id: "jeju-blue-dolphins", name: "제주 블루돌핀스", logoUrl: "/assets/jeju-blue-dolphins-logo.png", circularFrame: true },
-  { id: "gangwon-blue-knights", name: "강원 블루나이츠", logoUrl: "/assets/gangwon-blue-knights-logo.png", circularFrame: true },
-  { id: "jeonbuk-overflow", name: "전북 오버플로", logoUrl: "/assets/jeonbuk-overflow-logo.png", circularFrame: true },
+  { id: "incheon-sniper", name: "인천 스나이퍼", logoUrl: "/assets/incheon-sniper-logo.png", circularFrame: true, division: "both" },
+  { id: "seoul-haechis", name: "서울 해치스", logoUrl: "/assets/seoul-haechis-logo.png", circularFrame: true, division: "both" },
+  { id: "seoul-ares", name: "서울 아레스", logoUrl: "/assets/seoul-ares-logo.png", circularFrame: true, division: "both" },
+  { id: "gyeryong-onekill-dragons", name: "계룡 원킬 드래곤즈", logoUrl: "/assets/gyeryong-onekill-dragons-logo.png", circularFrame: true, division: "both" },
+  { id: "gwangju-team-leopard", name: "광주 Team-Leopard", logoUrl: "/assets/gwangju-team-leopard-logo.png", circularFrame: true, division: "both" },
+  { id: "jeju-blue-dolphins", name: "제주 블루돌핀스", logoUrl: "/assets/jeju-blue-dolphins-logo.png", circularFrame: true, division: "both" },
+  { id: "gangwon-blue-knights", name: "강원 블루나이츠", logoUrl: "/assets/gangwon-blue-knights-logo.png", circularFrame: true, division: "both" },
+  { id: "jeonbuk-overflow", name: "전북 오버플로", logoUrl: "/assets/jeonbuk-overflow-logo.png", circularFrame: true, division: "both" },
 ];
 
 const readImageFromFile = (file: File): Promise<LoadedImage> =>
@@ -141,6 +146,41 @@ function drawCoverImage(
   ctx.drawImage(img, dx, dy, drawW, drawH);
 }
 
+// 로고를 원형으로 자르지 않고 비율 그대로 보이게 그린다.
+function drawContainImage(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  cx: number,
+  cy: number,
+  maxWidth: number,
+  maxHeight: number,
+) {
+  const scale = Math.min(maxWidth / img.naturalWidth, maxHeight / img.naturalHeight);
+  const drawW = img.naturalWidth * scale;
+  const drawH = img.naturalHeight * scale;
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,.45)";
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 7;
+  ctx.drawImage(img, cx - drawW / 2, cy - drawH / 2, drawW, drawH);
+  ctx.restore();
+}
+
+const sportFont = (size: number) =>
+  `900 ${size}px "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Arial Black", sans-serif`;
+
+// 영문 대회명처럼 긴 문구는 패널을 넘지 않도록 글자 크기를 줄인다.
+function fitSportFontSize(ctx: CanvasRenderingContext2D, text: string, size: number, maxWidth: number) {
+  let fitted = size;
+  while (fitted > 28) {
+    ctx.font = sportFont(fitted);
+    if (ctx.measureText(text).width <= maxWidth) break;
+    fitted -= 2;
+  }
+  return fitted;
+}
+
 function drawSportText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -148,15 +188,17 @@ function drawSportText(
   y: number,
   size: number,
   align: CanvasTextAlign = "center",
+  maxWidth?: number,
 ) {
   ctx.save();
-  ctx.font = `900 ${size}px "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Arial Black", sans-serif`;
+  const fontSize = maxWidth ? fitSportFontSize(ctx, text, size, maxWidth) : size;
+  ctx.font = sportFont(fontSize);
   ctx.textAlign = align;
   ctx.textBaseline = "alphabetic";
   ctx.lineJoin = "round";
   ctx.miterLimit = 2;
   ctx.strokeStyle = "rgba(5, 5, 18, .3)";
-  ctx.lineWidth = Math.max(3, size * 0.035);
+  ctx.lineWidth = Math.max(3, fontSize * 0.035);
   ctx.shadowColor = "rgba(0,0,0,.32)";
   ctx.shadowBlur = 4;
   ctx.shadowOffsetX = 3;
@@ -384,25 +426,34 @@ function renderThumbnail({
   drawThemePanel(ctx, theme);
 
   const projectLogo = logoImages[project.logoUrl];
-  const vikingsLogo = logoImages["/assets/vikings-logo.png"];
+  const vikingsLogo = logoImages[VIKINGS_LOGO_URL];
   const opponentLogo = logoImages[opponent.logoUrl];
 
-  if (projectLogo) drawLogoCircle(ctx, projectLogo, 445, 150, 190, false);
-  drawSportText(ctx, project.tournamentLine1, 420, 350, 76);
-  drawSportText(ctx, project.tournamentLine2, 420, 438, 76);
-  drawSportText(ctx, stageText || "[예선 4경기]", 425, 640, 88);
+  // 대회 로고와 우리 팀 로고는 원형으로 자르지 않고 원본 비율 그대로 중앙에 그린다.
+  if (projectLogo) drawContainImage(ctx, projectLogo, 420, 155, 230, 210);
+  // 두 줄은 같은 크기로 보이도록 더 작게 맞춰지는 쪽을 함께 쓴다.
+  const titleSize = Math.min(
+    fitSportFontSize(ctx, project.tournamentLine1, 76, 720),
+    fitSportFontSize(ctx, project.tournamentLine2, 76, 720),
+  );
+  drawSportText(ctx, project.tournamentLine1, 420, 350, titleSize);
+  drawSportText(ctx, project.tournamentLine2, 420, 438, titleSize);
+  drawSportText(ctx, stageText || "[예선 4경기]", 425, 640, 88, "center", 700);
 
-  if (vikingsLogo) drawLogoCircle(ctx, vikingsLogo, 190, 865, 250, false);
+  if (vikingsLogo) drawContainImage(ctx, vikingsLogo, 190, 865, 265, 265);
   ctx.save();
   ctx.font = 'italic 900 84px "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Arial Black", sans-serif';
+  ctx.textAlign = "center";
   ctx.fillStyle = "#ffffff";
   ctx.shadowColor = "rgba(0,0,0,.34)";
   ctx.shadowBlur = 3;
   ctx.shadowOffsetX = 3;
   ctx.shadowOffsetY = 4;
-  ctx.fillText("vs", 365, 895);
+  // 우리 팀 로고(오른쪽 끝 ≈323)와 상대 로고 원(왼쪽 끝 ≈463) 사이 가운데.
+  ctx.fillText("vs", 393, 895);
   ctx.restore();
-  if (opponentLogo) drawLogoCircle(ctx, opponentLogo, 640, 865, 250, true);
+  // 분할선(y=865 에서 x≈788)과 겹치지 않도록 상대팀 로고를 왼쪽으로 당긴다.
+  if (opponentLogo) drawLogoCircle(ctx, opponentLogo, 598, 865, 250, true);
 }
 
 export default function ThumbnailStudio() {
@@ -427,6 +478,7 @@ export default function ThumbnailStudio() {
   const [projectLine2, setProjectLine2] = useState("챌린지컵 대회");
   const [projectLogoFile, setProjectLogoFile] = useState<File | null>(null);
   const [opponentName, setOpponentName] = useState("");
+  const [opponentDivision, setOpponentDivision] = useState<Division>("both");
   const [opponentLogoFile, setOpponentLogoFile] = useState<File | null>(null);
   const [logoImages, setLogoImages] = useState<Record<string, HTMLImageElement>>({});
   const [status, setStatus] = useState("준비 완료");
@@ -435,13 +487,20 @@ export default function ThumbnailStudio() {
     () => projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? DEFAULT_PROJECT,
     [projects, selectedProjectId],
   );
+  // 남자팀 테마에서는 남자부, 여자팀 테마에서는 여자부 상대팀만 고를 수 있게 한다.
+  const visibleOpponents = useMemo(() => {
+    const matching = opponents.filter((opponent) => opponent.division === "both" || opponent.division === theme);
+    return matching.length ? matching : opponents;
+  }, [opponents, theme]);
   const selectedOpponent = useMemo(
-    () => opponents.find((opponent) => opponent.id === selectedOpponentId) ?? opponents[0] ?? DEFAULT_OPPONENTS[0],
-    [opponents, selectedOpponentId],
+    () => visibleOpponents.find((opponent) => opponent.id === selectedOpponentId)
+      ?? visibleOpponents[0]
+      ?? DEFAULT_OPPONENTS[0],
+    [selectedOpponentId, visibleOpponents],
   );
 
   const logoUrls = useMemo(() => {
-    const urls = new Set(["/assets/vikings-logo.png", selectedProject.logoUrl, selectedOpponent.logoUrl]);
+    const urls = new Set([VIKINGS_LOGO_URL, selectedProject.logoUrl, selectedOpponent.logoUrl]);
     projects.forEach((project) => urls.add(project.logoUrl));
     opponents.forEach((opponent) => urls.add(opponent.logoUrl));
     return [...urls].filter(Boolean);
@@ -458,10 +517,11 @@ export default function ThumbnailStudio() {
         }
       }
       if (opponentRes.ok) {
-        const data = (await opponentRes.json()) as { opponents: Opponent[] };
+        const data = (await opponentRes.json()) as { opponents: Array<Omit<Opponent, "division"> & { division?: Division }> };
         if (data.opponents.length) {
-          setOpponents(data.opponents);
-          setSelectedOpponentId((current) => data.opponents.some((opponent) => opponent.id === current) ? current : data.opponents[0].id);
+          const loaded = data.opponents.map((opponent) => ({ ...opponent, division: opponent.division ?? "both" }));
+          setOpponents(loaded);
+          setSelectedOpponentId((current) => loaded.some((opponent) => opponent.id === current) ? current : loaded[0].id);
         }
       }
     } catch {
@@ -632,13 +692,14 @@ export default function ThumbnailStudio() {
       const response = await fetch("/api/opponents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: opponentName, logoUrl, circularFrame: true }),
+        body: JSON.stringify({ name: opponentName, logoUrl, circularFrame: true, division: opponentDivision }),
       });
       if (!response.ok) throw new Error("상대팀 저장 실패");
       const data = (await response.json()) as { opponent: Opponent };
       setOpponents((items) => [data.opponent, ...items.filter((item) => item.id !== data.opponent.id)]);
       setSelectedOpponentId(data.opponent.id);
       setOpponentName("");
+      setOpponentDivision("both");
       setOpponentLogoFile(null);
       setStatus("상대팀 저장 완료");
     } catch (error) {
@@ -649,6 +710,7 @@ export default function ThumbnailStudio() {
   const loadOpponentForEdit = (opponent: Opponent) => {
     setSelectedOpponentId(opponent.id);
     setOpponentName(opponent.name);
+    setOpponentDivision(opponent.division);
     setOpponentLogoFile(null);
     setStatus("선택 상대팀을 편집 폼에 불러왔습니다.");
   };
@@ -663,11 +725,12 @@ export default function ThumbnailStudio() {
       const logoUrl = opponentLogoFile
         ? await uploadStoredImage(opponentLogoFile, "opponent-logos")
         : selectedOpponent.logoUrl;
-      const next = {
+      const next: Opponent = {
         ...selectedOpponent,
         name: opponentName.trim() || selectedOpponent.name,
         logoUrl,
         circularFrame: true,
+        division: opponentDivision,
       };
       const response = await fetch(`/api/opponents/${selectedOpponent.id}`, {
         method: "PATCH",
@@ -677,6 +740,7 @@ export default function ThumbnailStudio() {
       if (!response.ok) throw new Error("상대팀 수정 실패");
       setOpponents((items) => items.map((item) => item.id === selectedOpponent.id ? next : item));
       setOpponentName("");
+      setOpponentDivision("both");
       setOpponentLogoFile(null);
       setStatus("상대팀 수정 완료");
     } catch (error) {
@@ -721,11 +785,44 @@ export default function ThumbnailStudio() {
       offsetX,
       offsetY,
     });
-    const link = document.createElement("a");
     const safeName = `${selectedProject.name}-${stageText || "thumbnail"}`.replace(/[\\/:*?"<>|]/g, "_");
-    link.download = `${safeName}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    const fileName = `${safeName}.png`;
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) {
+      setStatus("PNG 생성에 실패했습니다.");
+      return;
+    }
+
+    // iOS Safari 는 큰 data:/blob: 다운로드를 막기 때문에 공유 시트로 저장하게 한다.
+    const file = new File([blob], fileName, { type: "image/png" });
+    const canShareFile = typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
+    const isAppleMobile = /iP(hone|ad|od)/.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    let saved = false;
+    if (isAppleMobile && canShareFile) {
+      try {
+        await navigator.share({ files: [file], title: fileName });
+        saved = true;
+      } catch (error) {
+        if ((error as Error)?.name === "AbortError") {
+          setStatus("저장을 취소했습니다.");
+          return;
+        }
+      }
+    }
+    if (!saved) {
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.download = fileName;
+      link.href = objectUrl;
+      link.rel = "noopener";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      // 다운로드가 막힌 브라우저에서도 이미지를 길게 눌러 저장할 수 있도록 새 탭으로 띄운다.
+      if (isAppleMobile) window.open(objectUrl, "_blank");
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    }
     void fetch("/api/thumbnails", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -737,7 +834,7 @@ export default function ThumbnailStudio() {
         photoName: gamePhoto?.fileName ?? null,
       }),
     });
-    setStatus("1920x1080 PNG 다운로드 생성 완료");
+    setStatus(saved ? "1920x1080 PNG 저장 완료" : "1920x1080 PNG 다운로드 생성 완료");
   };
 
   const openProject = (project: Project) => {
@@ -759,6 +856,15 @@ export default function ThumbnailStudio() {
       </div>
       <form className="control-grid" onSubmit={createOpponent}>
         <input value={opponentName} onChange={(event) => setOpponentName(event.target.value)} placeholder="상대팀명" />
+        <select
+          aria-label="상대팀 소속"
+          value={opponentDivision}
+          onChange={(event) => setOpponentDivision(event.target.value as Division)}
+        >
+          <option value="men">{DIVISION_LABELS.men}</option>
+          <option value="women">{DIVISION_LABELS.women}</option>
+          <option value="both">{DIVISION_LABELS.both}</option>
+        </select>
         <label className="file-button">
           <span>{opponentLogoFile ? opponentLogoFile.name : "상대 로고"}</span>
           <input type="file" accept="image/*" onChange={(event) => setOpponentLogoFile(event.target.files?.[0] ?? null)} />
@@ -771,7 +877,7 @@ export default function ThumbnailStudio() {
         {opponents.map((opponent) => (
           <div key={opponent.id} className="opponent-row">
             <img src={opponent.logoUrl} alt="" />
-            <span>{opponent.name}</span>
+            <span>{opponent.name}<em className="opponent-division"> · {DIVISION_LABELS[opponent.division]}</em></span>
             <div className="opponent-actions">
               <button type="button" onClick={() => loadOpponentForEdit(opponent)}>편집</button>
               <button type="button" onClick={() => deleteOpponent(opponent.id)}>삭제</button>
@@ -879,7 +985,7 @@ export default function ThumbnailStudio() {
         <div className="control-block">
           <label htmlFor="opponent">상대팀</label>
           <select id="opponent" value={selectedOpponent.id} onChange={(event) => setSelectedOpponentId(event.target.value)}>
-            {opponents.map((opponent) => (
+            {visibleOpponents.map((opponent) => (
               <option key={opponent.id} value={opponent.id}>{opponent.name}</option>
             ))}
           </select>

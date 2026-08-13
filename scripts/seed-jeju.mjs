@@ -22,35 +22,35 @@ const PROJECT = {
   logo: "jeju-open-logo.webp",
 };
 
-// [상대팀명, 로고 파일명] — 남자부 16팀 + 여자부 13팀에서 Seoul Vikings 제외
+// [상대팀명, 로고 파일명, 소속] — 남자부 16팀 + 여자부 13팀에서 Seoul Vikings 제외
 const TEAMS = [
-  ["Hong Kong Stars", "hong-kong-stars-logo.webp"],
-  ["NTU Men's White", "ntu-men-s-white-logo.webp"],
-  ["Tamla Devil", "tamla-devil-logo.webp"],
-  ["Team Leopard", "team-leopard-logo.webp"],
-  ["ASTRA", "astra-logo.webp"],
-  ["Jeju Oceans", "jeju-oceans-logo.webp"],
-  ["LingFung", null], // flovus 에 등록된 로고 없음 → 기본 플레이스홀더 사용
-  ["Pegasus", "pegasus-logo.webp"],
-  ["Jeju Dolphins", "jeju-dolphins-logo.webp"],
-  ["Merlion Men", "merlion-men-logo.webp"],
-  ["ShangHai Jingwu", "shanghai-jingwu-logo.webp"],
-  ["SHINIL FC", "shinil-fc-logo.webp"],
-  ["Daykey", "daykey-logo.webp"],
-  ["Mars", "mars-logo.webp"],
-  ["NTU Men's Blue", "ntu-men-s-blue-logo.webp"],
-  ["Jeju Blue Dolphins", "jeju-blue-dolphins-logo.webp"],
-  ["Keplites", "keplites-logo.webp"],
-  ["Tamla Devil (W)", "tamla-devil-w-logo.webp"],
-  ["Pegasus (W)", "pegasus-w-logo.webp"],
-  ["Shanghai JingWu (W)", "shanghai-jingwu-w-logo.webp"],
-  ["SoJeju", "sojeju-logo.webp"],
-  ["Team Leopard (W)", "team-leopard-w-logo.webp"],
-  ["FED FAT", "fed-fat-logo.webp"],
-  ["NTU Women's", "ntu-women-s-logo.webp"],
-  ["Overflow", "overflow-logo.webp"],
-  ["T_Allies", "t-allies-logo.webp"],
-  ["Team Shinseong", "team-shinseong-logo.webp"],
+  ["Hong Kong Stars", "hong-kong-stars-logo.webp", "men"],
+  ["NTU Men's White", "ntu-men-s-white-logo.webp", "men"],
+  ["Tamla Devil", "tamla-devil-logo.webp", "men"],
+  ["Team Leopard", "team-leopard-logo.webp", "men"],
+  ["ASTRA", "astra-logo.webp", "men"],
+  ["Jeju Oceans", "jeju-oceans-logo.webp", "men"],
+  ["LingFung", null, "men"], // flovus 에 등록된 로고 없음 → 기본 플레이스홀더 사용
+  ["Pegasus", "pegasus-logo.webp", "men"],
+  ["Jeju Dolphins", "jeju-dolphins-logo.webp", "men"],
+  ["Merlion Men", "merlion-men-logo.webp", "men"],
+  ["ShangHai Jingwu", "shanghai-jingwu-logo.webp", "men"],
+  ["SHINIL FC", "shinil-fc-logo.webp", "men"],
+  ["Daykey", "daykey-logo.webp", "men"],
+  ["Mars", "mars-logo.webp", "men"],
+  ["NTU Men's Blue", "ntu-men-s-blue-logo.webp", "men"],
+  ["Jeju Blue Dolphins", "jeju-blue-dolphins-logo.webp", "women"],
+  ["Keplites", "keplites-logo.webp", "women"],
+  ["Tamla Devil (W)", "tamla-devil-w-logo.webp", "women"],
+  ["Pegasus (W)", "pegasus-w-logo.webp", "women"],
+  ["Shanghai JingWu (W)", "shanghai-jingwu-w-logo.webp", "women"],
+  ["SoJeju", "sojeju-logo.webp", "women"],
+  ["Team Leopard (W)", "team-leopard-w-logo.webp", "women"],
+  ["FED FAT", "fed-fat-logo.webp", "women"],
+  ["NTU Women's", "ntu-women-s-logo.webp", "women"],
+  ["Overflow", "overflow-logo.webp", "women"],
+  ["T_Allies", "t-allies-logo.webp", "women"],
+  ["Team Shinseong", "team-shinseong-logo.webp", "women"],
 ];
 
 const PLACEHOLDER_LOGO = "/assets/opponent-placeholder.png";
@@ -77,10 +77,12 @@ const patchJson = (path, payload) => api(path, {
   body: JSON.stringify(payload),
 });
 
-// 로고 주소가 실제로 이미지를 돌려주는지 확인한다. data: URL 은 항상 유효.
-async function logoServesImage(logoUrl) {
-  if (!logoUrl) return false;
-  if (logoUrl.startsWith("data:")) return true;
+const logoBytes = (fileName) => readFile(join(assetsDir, fileName));
+
+// 이미 등록된 로고를 그대로 둘지 판단한다.
+// - data: URL 이면 이 저장소의 로고 파일과 내용이 같을 때만 그대로 둔다.
+// - 그 밖의 주소면 실제로 이미지를 돌려주는지만 확인한다.
+async function servesImage(logoUrl) {
   try {
     const response = await fetch(logoUrl.startsWith("http") ? logoUrl : `${baseUrl}${logoUrl}`);
     if (!response.ok) return false;
@@ -90,15 +92,26 @@ async function logoServesImage(logoUrl) {
   }
 }
 
+async function logoUpToDate(logoUrl, fileName) {
+  if (!logoUrl) return false;
+  if (logoUrl.startsWith("data:")) {
+    if (!fileName) return false;
+    const encoded = logoUrl.slice(logoUrl.indexOf(",") + 1);
+    return encoded === (await logoBytes(fileName)).toString("base64");
+  }
+  if (!fileName) return logoUrl === PLACEHOLDER_LOGO;
+  return servesImage(logoUrl);
+}
+
 async function resolveLogoUrl(fileName, folder) {
   if (!fileName) return PLACEHOLDER_LOGO;
-  const bytes = await readFile(join(assetsDir, fileName));
+  const bytes = await logoBytes(fileName);
   if (uploadsUsable) {
     const body = new FormData();
     body.append("file", new File([bytes], basename(fileName), { type: "image/webp" }));
     body.append("folder", folder);
     const { url } = await api("/api/uploads", { method: "POST", body });
-    if (await logoServesImage(url)) return url;
+    if (await servesImage(url)) return url;
     uploadsUsable = false;
     console.log("업로드한 이미지가 빈 응답으로 돌아옴 → data: URL 로 대체합니다.");
   }
@@ -116,32 +129,36 @@ if (!existingProject) {
     tournamentLine2: PROJECT.tournamentLine2,
   });
   console.log(`프로젝트 생성: ${project.name} (${project.id})`);
-} else if (await logoServesImage(existingProject.logoUrl)) {
+} else if (await logoUpToDate(existingProject.logoUrl, PROJECT.logo)) {
   console.log(`프로젝트 "${PROJECT.name}" 이미 정상 등록됨 → 건너뜀`);
 } else {
   const logoUrl = await resolveLogoUrl(PROJECT.logo, "project-logos");
   await patchJson(`/api/projects/${existingProject.id}`, { logoUrl });
-  console.log(`프로젝트 로고 복구: ${PROJECT.name}`);
+  console.log(`프로젝트 로고 갱신: ${PROJECT.name}`);
 }
 
 const { opponents } = await api("/api/opponents");
 const existingOpponents = new Map(opponents.map((opponent) => [opponent.name, opponent]));
 
 // 목록이 최신순으로 정렬되므로 역순으로 등록해 남자부 → 여자부 순서로 보이게 한다.
-for (const [name, logo] of [...TEAMS].reverse()) {
+for (const [name, logo, division] of [...TEAMS].reverse()) {
   const existing = existingOpponents.get(name);
-  if (existing && (await logoServesImage(existing.logoUrl))) {
-    console.log(`상대팀 "${name}" 이미 정상 등록됨 → 건너뜀`);
+  if (existing) {
+    const logoOk = await logoUpToDate(existing.logoUrl, logo);
+    const divisionOk = existing.division === division;
+    if (logoOk && divisionOk) {
+      console.log(`상대팀 "${name}" 이미 최신 → 건너뜀`);
+      continue;
+    }
+    const patch = { division };
+    if (!logoOk) patch.logoUrl = await resolveLogoUrl(logo, "opponent-logos");
+    await patchJson(`/api/opponents/${existing.id}`, patch);
+    console.log(`상대팀 갱신: ${name}${logoOk ? " (소속)" : " (로고+소속)"}`);
     continue;
   }
   const logoUrl = await resolveLogoUrl(logo, "opponent-logos");
-  if (existing) {
-    await patchJson(`/api/opponents/${existing.id}`, { logoUrl });
-    console.log(`상대팀 로고 복구: ${name}`);
-  } else {
-    const { opponent } = await postJson("/api/opponents", { name, logoUrl, circularFrame: true });
-    console.log(`상대팀 생성: ${opponent.name} (${opponent.id})`);
-  }
+  const { opponent } = await postJson("/api/opponents", { name, logoUrl, circularFrame: true, division });
+  console.log(`상대팀 생성: ${opponent.name} (${opponent.id})`);
 }
 
 console.log("완료");
