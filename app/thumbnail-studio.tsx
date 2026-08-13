@@ -12,11 +12,20 @@ type Project = {
   tournamentLine2: string;
 };
 
+type TeamDivision = TeamTheme | "both";
+
 type Opponent = {
   id: string;
   name: string;
   logoUrl: string;
   circularFrame: boolean;
+  division: TeamDivision;
+};
+
+const DIVISION_LABELS: Record<TeamDivision, string> = {
+  men: "남자부",
+  women: "여자부",
+  both: "공통",
 };
 
 type LoadedImage = {
@@ -35,14 +44,14 @@ const DEFAULT_PROJECT: Project = {
   tournamentLine2: "국제플로어볼대회",
 };
 const DEFAULT_OPPONENTS: Opponent[] = [
-  { id: "incheon-sniper", name: "인천 스나이퍼", logoUrl: "/assets/incheon-sniper-logo.png", circularFrame: true },
-  { id: "seoul-haechis", name: "서울 해치스", logoUrl: "/assets/seoul-haechis-logo.png", circularFrame: true },
-  { id: "seoul-ares", name: "서울 아레스", logoUrl: "/assets/seoul-ares-logo.png", circularFrame: true },
-  { id: "gyeryong-onekill-dragons", name: "계룡 원킬 드래곤즈", logoUrl: "/assets/gyeryong-onekill-dragons-logo.png", circularFrame: true },
-  { id: "gwangju-team-leopard", name: "광주 Team-Leopard", logoUrl: "/assets/gwangju-team-leopard-logo.png", circularFrame: true },
-  { id: "jeju-blue-dolphins", name: "제주 블루돌핀스", logoUrl: "/assets/jeju-blue-dolphins-logo.png", circularFrame: true },
-  { id: "gangwon-blue-knights", name: "강원 블루나이츠", logoUrl: "/assets/gangwon-blue-knights-logo.png", circularFrame: true },
-  { id: "jeonbuk-overflow", name: "전북 오버플로", logoUrl: "/assets/jeonbuk-overflow-logo.png", circularFrame: true },
+  { id: "incheon-sniper", name: "인천 스나이퍼", logoUrl: "/assets/incheon-sniper-logo.png", circularFrame: true, division: "both" },
+  { id: "seoul-haechis", name: "서울 해치스", logoUrl: "/assets/seoul-haechis-logo.png", circularFrame: true, division: "both" },
+  { id: "seoul-ares", name: "서울 아레스", logoUrl: "/assets/seoul-ares-logo.png", circularFrame: true, division: "both" },
+  { id: "gyeryong-onekill-dragons", name: "계룡 원킬 드래곤즈", logoUrl: "/assets/gyeryong-onekill-dragons-logo.png", circularFrame: true, division: "both" },
+  { id: "gwangju-team-leopard", name: "광주 Team-Leopard", logoUrl: "/assets/gwangju-team-leopard-logo.png", circularFrame: true, division: "both" },
+  { id: "jeju-blue-dolphins", name: "제주 블루돌핀스", logoUrl: "/assets/jeju-blue-dolphins-logo.png", circularFrame: true, division: "both" },
+  { id: "gangwon-blue-knights", name: "강원 블루나이츠", logoUrl: "/assets/gangwon-blue-knights-logo.png", circularFrame: true, division: "both" },
+  { id: "jeonbuk-overflow", name: "전북 오버플로", logoUrl: "/assets/jeonbuk-overflow-logo.png", circularFrame: true, division: "both" },
 ];
 
 const readImageFromFile = (file: File): Promise<LoadedImage> =>
@@ -388,6 +397,7 @@ export default function ThumbnailStudio() {
   const [projectLogoFile, setProjectLogoFile] = useState<File | null>(null);
   const [opponentName, setOpponentName] = useState("");
   const [opponentLogoFile, setOpponentLogoFile] = useState<File | null>(null);
+  const [opponentDivision, setOpponentDivision] = useState<TeamDivision>("both");
   const [logoImages, setLogoImages] = useState<Record<string, HTMLImageElement>>({});
   const [status, setStatus] = useState("준비 완료");
 
@@ -395,9 +405,18 @@ export default function ThumbnailStudio() {
     () => projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? DEFAULT_PROJECT,
     [projects, selectedProjectId],
   );
+  // The men's and women's brackets have separate team lists, so the picker only
+  // offers teams in the bracket matching the current theme.
+  const visibleOpponents = useMemo(() => {
+    const matching = opponents.filter((opponent) => opponent.division === "both" || opponent.division === theme);
+    return matching.length ? matching : opponents;
+  }, [opponents, theme]);
   const selectedOpponent = useMemo(
-    () => opponents.find((opponent) => opponent.id === selectedOpponentId) ?? opponents[0] ?? DEFAULT_OPPONENTS[0],
-    [opponents, selectedOpponentId],
+    () => visibleOpponents.find((opponent) => opponent.id === selectedOpponentId)
+      ?? visibleOpponents[0]
+      ?? opponents[0]
+      ?? DEFAULT_OPPONENTS[0],
+    [opponents, selectedOpponentId, visibleOpponents],
   );
 
   const logoUrls = useMemo(() => {
@@ -592,7 +611,7 @@ export default function ThumbnailStudio() {
       const response = await fetch("/api/opponents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: opponentName, logoUrl, circularFrame: true }),
+        body: JSON.stringify({ name: opponentName, logoUrl, circularFrame: true, division: opponentDivision }),
       });
       if (!response.ok) throw new Error("상대팀 저장 실패");
       const data = (await response.json()) as { opponent: Opponent };
@@ -600,6 +619,7 @@ export default function ThumbnailStudio() {
       setSelectedOpponentId(data.opponent.id);
       setOpponentName("");
       setOpponentLogoFile(null);
+      setOpponentDivision("both");
       setStatus("상대팀 저장 완료");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "상대팀 저장 실패");
@@ -610,11 +630,12 @@ export default function ThumbnailStudio() {
     setSelectedOpponentId(opponent.id);
     setOpponentName(opponent.name);
     setOpponentLogoFile(null);
+    setOpponentDivision(opponent.division);
     setStatus("선택 상대팀을 편집 폼에 불러왔습니다.");
   };
 
   const updateSelectedOpponent = async () => {
-    if (!opponentName.trim() && !opponentLogoFile) {
+    if (!opponentName.trim() && !opponentLogoFile && opponentDivision === selectedOpponent.division) {
       setStatus("수정할 상대팀명 또는 로고를 입력하세요.");
       return;
     }
@@ -628,6 +649,7 @@ export default function ThumbnailStudio() {
         name: opponentName.trim() || selectedOpponent.name,
         logoUrl,
         circularFrame: true,
+        division: opponentDivision,
       };
       const response = await fetch(`/api/opponents/${selectedOpponent.id}`, {
         method: "PATCH",
@@ -723,6 +745,15 @@ export default function ThumbnailStudio() {
           <span>{opponentLogoFile ? opponentLogoFile.name : "상대 로고"}</span>
           <input type="file" accept="image/*" onChange={(event) => setOpponentLogoFile(event.target.files?.[0] ?? null)} />
         </label>
+        <select
+          aria-label="부서"
+          value={opponentDivision}
+          onChange={(event) => setOpponentDivision(event.target.value as TeamDivision)}
+        >
+          <option value="both">{DIVISION_LABELS.both}</option>
+          <option value="men">{DIVISION_LABELS.men}</option>
+          <option value="women">{DIVISION_LABELS.women}</option>
+        </select>
         <button type="submit">상대팀 저장</button>
         <button type="button" onClick={updateSelectedOpponent}>수정 저장</button>
       </form>
@@ -732,6 +763,7 @@ export default function ThumbnailStudio() {
           <div key={opponent.id} className="opponent-row">
             <img src={opponent.logoUrl} alt="" />
             <span>{opponent.name}</span>
+            <span className="opponent-division">{DIVISION_LABELS[opponent.division]}</span>
             <div className="opponent-actions">
               <button type="button" onClick={() => loadOpponentForEdit(opponent)}>편집</button>
               <button type="button" onClick={() => deleteOpponent(opponent.id)}>삭제</button>
@@ -839,7 +871,7 @@ export default function ThumbnailStudio() {
         <div className="control-block">
           <label htmlFor="opponent">상대팀</label>
           <select id="opponent" value={selectedOpponent.id} onChange={(event) => setSelectedOpponentId(event.target.value)}>
-            {opponents.map((opponent) => (
+            {visibleOpponents.map((opponent) => (
               <option key={opponent.id} value={opponent.id}>{opponent.name}</option>
             ))}
           </select>

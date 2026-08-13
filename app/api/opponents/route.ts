@@ -1,4 +1,4 @@
-import { createId, ensureSchema, getBindings, jsonError, normalizeOpponent } from "../storage";
+import { createId, ensureSchema, getBindings, jsonError, normalizeDivision, normalizeOpponent } from "../storage";
 
 export const runtime = "edge";
 
@@ -6,12 +6,13 @@ export async function GET() {
   const { DB } = getBindings();
   if (!DB) return Response.json({ opponents: [] });
   await ensureSchema(DB);
-  const result = await DB.prepare(`SELECT id, name, logo_url, circular_frame
+  const result = await DB.prepare(`SELECT id, name, logo_url, circular_frame, division
     FROM opponents ORDER BY updated_at DESC, created_at DESC`).all<{
     id: string;
     name: string;
     logo_url: string;
     circular_frame: number;
+    division: string;
   }>();
   return Response.json({ opponents: result.results.map(normalizeOpponent) });
 }
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
     name?: string;
     logoUrl?: string;
     circularFrame?: boolean;
+    division?: string;
   };
   const name = payload.name?.trim();
   const logoUrl = payload.logoUrl?.trim();
@@ -31,9 +33,10 @@ export async function POST(request: Request) {
   await ensureSchema(DB);
   const id = createId("opponent");
   const circularFrame = payload.circularFrame === false ? 0 : 1;
-  await DB.prepare(`INSERT INTO opponents (id, name, logo_url, circular_frame)
-    VALUES (?, ?, ?, ?)`).bind(id, name, logoUrl, circularFrame).run();
+  const division = normalizeDivision(payload.division);
+  await DB.prepare(`INSERT INTO opponents (id, name, logo_url, circular_frame, division)
+    VALUES (?, ?, ?, ?, ?)`).bind(id, name, logoUrl, circularFrame, division).run();
   return Response.json({
-    opponent: { id, name, logoUrl, circularFrame: Boolean(circularFrame) },
+    opponent: { id, name, logoUrl, circularFrame: Boolean(circularFrame), division },
   }, { status: 201 });
 }

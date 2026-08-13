@@ -16,6 +16,7 @@ export const opponents = sqliteTable("opponents", {
   name: text("name").notNull(),
   logoUrl: text("logo_url").notNull(),
   circularFrame: integer("circular_frame", { mode: "boolean" }).notNull().default(true),
+  division: text("division", { enum: ["men", "women", "both"] }).notNull().default("both"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

@@ -8,12 +8,19 @@ export type ProjectRow = {
   tournamentLine2: string;
 };
 
+export type TeamDivision = "men" | "women" | "both";
+
 export type OpponentRow = {
   id: string;
   name: string;
   logoUrl: string;
   circularFrame: boolean;
+  division: TeamDivision;
 };
+
+export function normalizeDivision(value: unknown): TeamDivision {
+  return value === "men" || value === "women" ? value : "both";
+}
 
 type EnvWithStorage = {
   DB?: D1Database;
@@ -46,6 +53,7 @@ export async function ensureSchema(db: D1Database) {
       name TEXT NOT NULL,
       logo_url TEXT NOT NULL,
       circular_frame INTEGER NOT NULL DEFAULT 1,
+      division TEXT NOT NULL DEFAULT 'both',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
@@ -67,6 +75,12 @@ export async function ensureSchema(db: D1Database) {
     )`),
     db.prepare("CREATE INDEX IF NOT EXISTS thumbnails_created_at_idx ON thumbnails (created_at)"),
   ]);
+
+  // Tables created before the men's/women's split predate the division column.
+  const opponentColumns = await db.prepare("PRAGMA table_info(opponents)").all<{ name: string }>();
+  if (!opponentColumns.results.some((column: { name: string }) => column.name === "division")) {
+    await db.prepare("ALTER TABLE opponents ADD COLUMN division TEXT NOT NULL DEFAULT 'both'").run();
+  }
 
   const count = await db.prepare("SELECT COUNT(*) AS count FROM projects").first<{ count: number }>();
   if (!count?.count) {
@@ -128,12 +142,14 @@ export function normalizeOpponent(row: {
   name: string;
   logo_url: string;
   circular_frame: number;
+  division?: string;
 }): OpponentRow {
   return {
     id: row.id,
     name: row.name,
     logoUrl: row.logo_url,
     circularFrame: Boolean(row.circular_frame),
+    division: normalizeDivision(row.division),
   };
 }
 
