@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* 썸네일 글자를 어떤 기기에서든 같은 두께로 그리기 위한 폰트.
+   기기 폰트(iOS 는 Apple SD Gothic Neo)에 맡기면 900 굵기가 무시돼 얇게 나온다.
+   한글 11,172자 + 라틴만 남긴 Pretendard Black 서브셋. */
+@font-face {
+  font-family: "PretendardCanvas";
+  src: url("/assets/fonts/pretendard-black.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: block;
+}
+
 :root {
   --ink: #f7f5ff;
   --muted: #a9a4bd;
@@ -641,8 +652,16 @@ select {
 canvas {
   display: block;
   width: 100%;
+  margin: 0 auto;
   aspect-ratio: 16 / 9;
   border-radius: 11px;
+}
+
+/* 세로·정사각 미리보기는 높이를 기준으로 맞춰 화면을 넘지 않게 한다. */
+canvas.tall {
+  width: auto;
+  max-width: 100%;
+  height: min(70vh, 880px);
 }
 
 @media (max-width: 980px) {
@@ -765,4 +784,100 @@ canvas {
   .opponent-actions button {
     width: 100%;
   }
+}
+
+/* 미리보기에서 사진을 끌어 옮길 때 화면이 같이 스크롤되지 않게 한다. */
+.canvas-frame canvas.draggable {
+  touch-action: none;
+  cursor: grab;
+}
+
+.canvas-frame canvas.draggable:active {
+  cursor: grabbing;
+}
+
+.field-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.score-inputs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.score-inputs input {
+  width: 92px;
+  text-align: center;
+}
+
+.score-inputs span {
+  color: var(--muted-strong);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .04);
+  color: var(--ink);
+  padding: 14px 18px;
+  text-align: left;
+}
+
+.history-row:hover,
+.history-row:focus-visible {
+  border-color: rgba(154, 130, 255, .55);
+  background: rgba(116, 87, 255, .12);
+}
+
+.history-when {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-main {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.history-main strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.history-main > span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-score {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .1);
+  color: var(--muted-strong);
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }

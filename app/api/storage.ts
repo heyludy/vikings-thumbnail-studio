@@ -6,9 +6,13 @@ export type ProjectRow = {
   logoUrl: string;
   tournamentLine1: string;
   tournamentLine2: string;
+  fixtureUrl: string | null;
 };
 
 export type Division = "men" | "women" | "both";
+
+// 썸네일의 왼쪽은 항상 우리 팀이다. 대회 일정에서 상대팀을 골라낼 때 쓴다.
+export const OUR_TEAM_NAMES = ["Seoul Vikings", "Seoul Vikings (W)"];
 
 export type OpponentRow = {
   id: string;
@@ -60,6 +64,8 @@ export function decodeAssetBody(body: unknown): ArrayBuffer {
   return new ArrayBuffer(0);
 }
 
+export const JEJU_FIXTURE_URL = "https://flovus.info/competitions/6";
+
 // 2026 제주국제오픈 참가팀 (남자부 16팀 + 여자부 13팀, Seoul Vikings 제외)
 // 출처: https://flovus.info/competitions/6
 const JEJU_TEAMS: Array<[id: string, name: string, logoUrl: string, division: Division]> = [
@@ -103,6 +109,25 @@ async function ensureDivisionColumn(db: D1Database) {
     db.prepare("UPDATE opponents SET division = ? WHERE name = ?").bind(division, name)));
 }
 
+// 먼저 만들어진 projects 테이블에는 fixture_url 컬럼이 없다.
+async function ensureFixtureUrlColumn(db: D1Database) {
+  const columns = await db.prepare("PRAGMA table_info(projects)").all<{ name: string }>();
+  if (columns.results.some((column: { name: string }) => column.name === "fixture_url")) return;
+  await db.prepare("ALTER TABLE projects ADD COLUMN fixture_url TEXT").run();
+  // 배포본의 제주 프로젝트는 API 로 만들어져 id 가 다르므로 이름으로 찾는다.
+  await db.prepare("UPDATE projects SET fixture_url = ? WHERE id = ? OR name = ?")
+    .bind(JEJU_FIXTURE_URL, "jeju-open-2026", "2026 제주국제오픈")
+    .run();
+}
+
+// 결과 썸네일의 스코어를 기록하려고 나중에 추가한 컬럼.
+async function ensureScoreColumns(db: D1Database) {
+  const columns = await db.prepare("PRAGMA table_info(thumbnails)").all<{ name: string }>();
+  const names = columns.results.map((column: { name: string }) => column.name);
+  if (!names.includes("our_score")) await db.prepare("ALTER TABLE thumbnails ADD COLUMN our_score TEXT").run();
+  if (!names.includes("their_score")) await db.prepare("ALTER TABLE thumbnails ADD COLUMN their_score TEXT").run();
+}
+
 export async function ensureSchema(db: D1Database) {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS projects (
@@ -111,6 +136,7 @@ export async function ensureSchema(db: D1Database) {
       logo_url TEXT NOT NULL,
       tournament_line_1 TEXT NOT NULL,
       tournament_line_2 TEXT NOT NULL,
+      fixture_url TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
@@ -129,6 +155,8 @@ export async function ensureSchema(db: D1Database) {
       opponent_id TEXT NOT NULL,
       theme TEXT NOT NULL,
       stage_text TEXT NOT NULL,
+      our_score TEXT,
+      their_score TEXT,
       photo_name TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
@@ -139,21 +167,29 @@ export async function ensureSchema(db: D1Database) {
       original_name TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS fixture_cache (
+      key TEXT PRIMARY KEY,
+      body TEXT NOT NULL,
+      fetched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
     db.prepare("CREATE INDEX IF NOT EXISTS thumbnails_created_at_idx ON thumbnails (created_at)"),
   ]);
 
   await ensureDivisionColumn(db);
+  await ensureFixtureUrlColumn(db);
+  await ensureScoreColumns(db);
 
   const count = await db.prepare("SELECT COUNT(*) AS count FROM projects").first<{ count: number }>();
   if (!count?.count) {
     await db.batch([
-      db.prepare(`INSERT OR IGNORE INTO projects (id, name, logo_url, tournament_line_1, tournament_line_2)
-        VALUES (?, ?, ?, ?, ?)`).bind(
+      db.prepare(`INSERT OR IGNORE INTO projects (id, name, logo_url, tournament_line_1, tournament_line_2, fixture_url)
+        VALUES (?, ?, ?, ?, ?, ?)`).bind(
         "jeju-open-2026",
         "2026 제주국제오픈",
         "/assets/jeju/jeju-open-logo.webp",
         "2026 제주국제오픈",
         "플로어볼 대회",
+        JEJU_FIXTURE_URL,
       ),
       db.prepare(`INSERT OR IGNORE INTO projects (id, name, logo_url, tournament_line_1, tournament_line_2)
         VALUES (?, ?, ?, ?, ?)`).bind(
@@ -192,6 +228,7 @@ export function normalizeProject(row: {
   logo_url: string;
   tournament_line_1: string;
   tournament_line_2: string;
+  fixture_url?: string | null;
 }): ProjectRow {
   return {
     id: row.id,
@@ -199,6 +236,7 @@ export function normalizeProject(row: {
     logoUrl: row.logo_url,
     tournamentLine1: row.tournament_line_1,
     tournamentLine2: row.tournament_line_2,
+    fixtureUrl: row.fixture_url ?? null,
   };
 }
 

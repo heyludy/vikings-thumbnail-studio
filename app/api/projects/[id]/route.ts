@@ -11,6 +11,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     logoUrl?: string;
     tournamentLine1?: string;
     tournamentLine2?: string;
+    fixtureUrl?: string;
   };
   await ensureSchema(DB);
   await DB.prepare(`UPDATE projects
@@ -18,12 +19,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       logo_url = COALESCE(?, logo_url),
       tournament_line_1 = COALESCE(?, tournament_line_1),
       tournament_line_2 = COALESCE(?, tournament_line_2),
+      fixture_url = COALESCE(?, fixture_url),
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?`).bind(
     payload.name?.trim() || null,
     payload.logoUrl?.trim() || null,
     payload.tournamentLine1?.trim() || null,
     payload.tournamentLine2?.trim() || null,
+    payload.fixtureUrl?.trim() || null,
     id,
   ).run();
   return Response.json({ ok: true });
