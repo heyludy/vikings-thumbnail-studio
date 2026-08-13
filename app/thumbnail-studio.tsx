@@ -27,14 +27,54 @@ type LoadedImage = {
 
 const WIDTH = 1920;
 const HEIGHT = 1080;
-const DEFAULT_PROJECT: Project = {
+const JEJU_PROJECT: Project = {
+  id: "jeju-open-2026",
+  name: "2026 제주국제오픈",
+  logoUrl: "/assets/jeju/jeju-open-logo.png",
+  tournamentLine1: "2026 제주국제오픈",
+  tournamentLine2: "플로어볼 대회",
+};
+const SAMPLE_PROJECT: Project = {
   id: "sample-project",
   name: "챌린지컵 샘플",
   logoUrl: "/assets/sample-tournament-logo.png",
   tournamentLine1: "대전광역시 플로어볼",
   tournamentLine2: "챌린지컵 대회",
 };
+const DEFAULT_PROJECTS: Project[] = [JEJU_PROJECT, SAMPLE_PROJECT];
+const DEFAULT_PROJECT = DEFAULT_PROJECTS[0];
+// 2026 제주국제오픈 참가팀 (출처: https://flovus.info/competitions/6)
+const JEJU_OPPONENTS: Opponent[] = [
+  { id: "jeju-hong-kong-stars", name: "Hong Kong Stars", logoUrl: "/assets/jeju/hong-kong-stars-logo.png", circularFrame: true },
+  { id: "jeju-ntu-men-s-white", name: "NTU Men's White", logoUrl: "/assets/jeju/ntu-men-s-white-logo.png", circularFrame: true },
+  { id: "jeju-tamla-devil", name: "Tamla Devil", logoUrl: "/assets/jeju/tamla-devil-logo.png", circularFrame: true },
+  { id: "jeju-team-leopard", name: "Team Leopard", logoUrl: "/assets/jeju/team-leopard-logo.png", circularFrame: true },
+  { id: "jeju-astra", name: "ASTRA", logoUrl: "/assets/jeju/astra-logo.png", circularFrame: true },
+  { id: "jeju-jeju-oceans", name: "Jeju Oceans", logoUrl: "/assets/jeju/jeju-oceans-logo.png", circularFrame: true },
+  { id: "jeju-lingfung", name: "LingFung", logoUrl: "/assets/opponent-placeholder.png", circularFrame: true },
+  { id: "jeju-pegasus", name: "Pegasus", logoUrl: "/assets/jeju/pegasus-logo.png", circularFrame: true },
+  { id: "jeju-jeju-dolphins", name: "Jeju Dolphins", logoUrl: "/assets/jeju/jeju-dolphins-logo.png", circularFrame: true },
+  { id: "jeju-merlion-men", name: "Merlion Men", logoUrl: "/assets/jeju/merlion-men-logo.png", circularFrame: true },
+  { id: "jeju-shanghai-jingwu", name: "ShangHai Jingwu", logoUrl: "/assets/jeju/shanghai-jingwu-logo.png", circularFrame: true },
+  { id: "jeju-shinil-fc", name: "SHINIL FC", logoUrl: "/assets/jeju/shinil-fc-logo.png", circularFrame: true },
+  { id: "jeju-daykey", name: "Daykey", logoUrl: "/assets/jeju/daykey-logo.png", circularFrame: true },
+  { id: "jeju-mars", name: "Mars", logoUrl: "/assets/jeju/mars-logo.png", circularFrame: true },
+  { id: "jeju-ntu-men-s-blue", name: "NTU Men's Blue", logoUrl: "/assets/jeju/ntu-men-s-blue-logo.png", circularFrame: true },
+  { id: "jeju-jeju-blue-dolphins", name: "Jeju Blue Dolphins", logoUrl: "/assets/jeju/jeju-blue-dolphins-logo.png", circularFrame: true },
+  { id: "jeju-keplites", name: "Keplites", logoUrl: "/assets/jeju/keplites-logo.png", circularFrame: true },
+  { id: "jeju-tamla-devil-w", name: "Tamla Devil (W)", logoUrl: "/assets/jeju/tamla-devil-w-logo.png", circularFrame: true },
+  { id: "jeju-pegasus-w", name: "Pegasus (W)", logoUrl: "/assets/jeju/pegasus-w-logo.png", circularFrame: true },
+  { id: "jeju-shanghai-jingwu-w", name: "Shanghai JingWu (W)", logoUrl: "/assets/jeju/shanghai-jingwu-w-logo.png", circularFrame: true },
+  { id: "jeju-sojeju", name: "SoJeju", logoUrl: "/assets/jeju/sojeju-logo.png", circularFrame: true },
+  { id: "jeju-team-leopard-w", name: "Team Leopard (W)", logoUrl: "/assets/jeju/team-leopard-w-logo.png", circularFrame: true },
+  { id: "jeju-fed-fat", name: "FED FAT", logoUrl: "/assets/jeju/fed-fat-logo.png", circularFrame: true },
+  { id: "jeju-ntu-women-s", name: "NTU Women's", logoUrl: "/assets/jeju/ntu-women-s-logo.png", circularFrame: true },
+  { id: "jeju-overflow", name: "Overflow", logoUrl: "/assets/jeju/overflow-logo.png", circularFrame: true },
+  { id: "jeju-t-allies", name: "T_Allies", logoUrl: "/assets/jeju/t-allies-logo.png", circularFrame: true },
+  { id: "jeju-team-shinseong", name: "Team Shinseong", logoUrl: "/assets/jeju/team-shinseong-logo.png", circularFrame: true },
+];
 const DEFAULT_OPPONENTS: Opponent[] = [
+  ...JEJU_OPPONENTS,
   { id: "incheon-sniper", name: "인천 스나이퍼", logoUrl: "/assets/incheon-sniper-logo.png", circularFrame: true },
   { id: "seoul-haechis", name: "서울 해치스", logoUrl: "/assets/seoul-haechis-logo.png", circularFrame: true },
   { id: "seoul-ares", name: "서울 아레스", logoUrl: "/assets/seoul-ares-logo.png", circularFrame: true },
@@ -372,7 +412,7 @@ export default function ThumbnailStudio() {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [openProjectMenuId, setOpenProjectMenuId] = useState<string | null>(null);
   const [showOpponentManager, setShowOpponentManager] = useState(false);
-  const [projects, setProjects] = useState<Project[]>([DEFAULT_PROJECT]);
+  const [projects, setProjects] = useState<Project[]>(DEFAULT_PROJECTS);
   const [opponents, setOpponents] = useState<Opponent[]>(DEFAULT_OPPONENTS);
   const [selectedProjectId, setSelectedProjectId] = useState(DEFAULT_PROJECT.id);
   const [selectedOpponentId, setSelectedOpponentId] = useState(DEFAULT_OPPONENTS[0].id);
