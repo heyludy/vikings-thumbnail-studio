@@ -479,6 +479,14 @@ function drawThemePanel(ctx: CanvasRenderingContext2D, theme: TeamTheme) {
 
 type MatchScore = { ours: string; theirs: string };
 
+// 저장 크기. 16:9 는 경기 예고(유튜브), 정사각·세로는 결과 카드(인스타)에 쓴다.
+type ThumbSize = "wide" | "square" | "story";
+const SIZES: Record<ThumbSize, { width: number; height: number; label: string }> = {
+  wide: { width: 1920, height: 1080, label: "16:9 유튜브" },
+  square: { width: 1080, height: 1080, label: "1:1 인스타" },
+  story: { width: 1080, height: 1920, label: "9:16 스토리" },
+};
+
 const outcomeOf = (score: MatchScore) => {
   const ours = Number(score.ours);
   const theirs = Number(score.theirs);
@@ -516,6 +524,7 @@ function drawOutcomePill(ctx: CanvasRenderingContext2D, label: string, cx: numbe
 
 type RenderInputs = {
   canvas: HTMLCanvasElement;
+  size?: ThumbSize;
   theme: TeamTheme;
   project: Project;
   opponent: Opponent;
@@ -528,7 +537,15 @@ type RenderInputs = {
   offsetY: number;
 };
 
-function renderThumbnail({
+function renderThumbnail(inputs: RenderInputs) {
+  if (inputs.size && inputs.size !== "wide") {
+    renderVertical({ ...inputs, size: inputs.size });
+    return;
+  }
+  renderWide(inputs);
+}
+
+function renderWide({
   canvas,
   theme,
   project,
@@ -599,24 +616,10 @@ function renderThumbnail({
   const stage = stageText || "[예선 4경기]";
   drawSportText(ctx, stage, lineCenterX(640, 88), 640, 88, "center", lineMaxWidth(640, 88));
 
-  const hasScore = score !== null && (score.ours !== "" || score.theirs !== "");
-  // 스코어를 넣을 때는 두 로고를 조금 좁혀 가운데 자리를 만든다.
-  const teamLogoSize = hasScore ? 235 : 265;
-  const ourLogoX = hasScore ? 165 : 190;
-  const opponentLogoX = hasScore ? 620 : 598;
-  const opponentLogoSize = hasScore ? 225 : 250;
-
-  if (vikingsLogo) drawContainImage(ctx, vikingsLogo, ourLogoX, 865, teamLogoSize, teamLogoSize);
+  // 16:9 는 경기 예고 전용이다. 스코어는 정사각/세로 크기에서 제대로 보여준다.
+  if (vikingsLogo) drawContainImage(ctx, vikingsLogo, 190, 865, 265, 265);
   // 분할선(y=865 에서 x≈788)과 겹치지 않도록 상대팀 로고를 왼쪽으로 당긴다.
-  if (opponentLogo) drawLogoCircle(ctx, opponentLogo, opponentLogoX, 865, opponentLogoSize, true);
-
-  const betweenX = (ourLogoX + teamLogoSize / 2 + opponentLogoX - opponentLogoSize / 2 - 10) / 2;
-  if (hasScore) {
-    drawSportText(ctx, `${score.ours || 0} : ${score.theirs || 0}`, betweenX, 880, 96, "center", 205);
-    const outcome = outcomeOf(score);
-    if (outcome) drawOutcomePill(ctx, outcome, betweenX, 950);
-    return;
-  }
+  if (opponentLogo) drawLogoCircle(ctx, opponentLogo, 598, 865, 250, true);
 
   ctx.save();
   ctx.font = `italic 900 84px ${CANVAS_FONT_STACK}`;
@@ -627,7 +630,215 @@ function renderThumbnail({
   ctx.shadowOffsetX = 3;
   ctx.shadowOffsetY = 4;
   // 우리 팀 로고(오른쪽 끝 ≈323)와 상대 로고 원(왼쪽 끝 ≈463) 사이 가운데.
-  ctx.fillText("vs", betweenX, 895);
+  ctx.fillText("vs", 393, 895);
+  ctx.restore();
+}
+
+
+/**
+ * 정사각·세로 카드. 사진을 위, 정보를 아래에 쌓고 그 사이를 사선으로 나눈다.
+ * 스코어가 있으면 "경기 종료" 라벨 아래에 [로고 숫자 - 숫자 로고] 한 줄로 묶어
+ * 숫자와 팀이 늘 짝으로 읽히게 한다. 두 크기 모두 가로 1080 이라 글자 크기는
+ * 같게 두고, 세로 여백만 패널 높이 비율로 나눈다.
+ */
+const VERTICAL_LAYOUTS = {
+  square: {
+    photoLeft: 500,
+    photoRight: 440,
+    projectLogo: { width: 150, height: 132 },
+    titleSize: 52,
+    titleGap: 66,
+    stageSize: 56,
+    labelSize: 28,
+    scoreSize: 120,
+    teamLogo: 178,
+    logoSpread: 300,
+    scoreSpread: 108,
+  },
+  story: {
+    photoLeft: 1050,
+    photoRight: 980,
+    projectLogo: { width: 210, height: 184 },
+    titleSize: 64,
+    titleGap: 82,
+    stageSize: 70,
+    labelSize: 34,
+    scoreSize: 168,
+    teamLogo: 250,
+    logoSpread: 372,
+    scoreSpread: 138,
+  },
+} as const;
+
+function renderVertical({
+  canvas,
+  size,
+  theme,
+  project,
+  opponent,
+  stageText,
+  score,
+  gamePhoto,
+  logoImages,
+  zoom,
+  offsetX,
+  offsetY,
+}: RenderInputs & { size: Exclude<ThumbSize, "wide"> }) {
+  const { width, height } = SIZES[size];
+  const design = VERTICAL_LAYOUTS[size];
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.clearRect(0, 0, width, height);
+
+  // 위쪽 사진
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(width, 0);
+  ctx.lineTo(width, design.photoRight);
+  ctx.lineTo(0, design.photoLeft);
+  ctx.closePath();
+  ctx.clip();
+  if (gamePhoto) {
+    drawCoverImage(ctx, gamePhoto, { x: 0, y: 0, w: width, h: design.photoLeft }, zoom, offsetX, offsetY);
+  } else {
+    const empty = ctx.createLinearGradient(0, 0, width, design.photoLeft);
+    empty.addColorStop(0, "#272331");
+    empty.addColorStop(1, "#111017");
+    ctx.fillStyle = empty;
+    ctx.fillRect(0, 0, width, design.photoLeft);
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,.34)";
+    ctx.font = `700 40px ${CANVAS_FONT_STACK}`;
+    ctx.textAlign = "center";
+    ctx.fillText("경기 사진 업로드", width / 2, design.photoLeft / 2);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // 아래 패널
+  const panelTop = design.photoRight;
+  const panelHeight = height - panelTop;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, design.photoLeft);
+  ctx.lineTo(width, panelTop);
+  ctx.lineTo(width, height);
+  ctx.lineTo(0, height);
+  ctx.closePath();
+  ctx.clip();
+  const gradient = ctx.createLinearGradient(0, panelTop, width, height);
+  if (theme === "men") {
+    gradient.addColorStop(0, "#161071");
+    gradient.addColorStop(0.55, "#0d0851");
+    gradient.addColorStop(1, "#050022");
+  } else {
+    gradient.addColorStop(0, "#c00a5f");
+    gradient.addColorStop(0.55, "#8b073e");
+    gradient.addColorStop(1, "#3f061f");
+  }
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, panelTop - 20, width, height);
+  ctx.globalAlpha = 0.3;
+  ctx.globalCompositeOperation = "screen";
+  for (let x = -80; x < width + 80; x += 118) {
+    const fold = ctx.createLinearGradient(x, panelTop, x + 90, height);
+    fold.addColorStop(0, "rgba(255,255,255,0)");
+    fold.addColorStop(0.5, theme === "men" ? "rgba(105,87,255,.22)" : "rgba(255,104,177,.22)");
+    fold.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.beginPath();
+    ctx.moveTo(x, panelTop - 20);
+    ctx.bezierCurveTo(x + 70, panelTop + 220, x + 10, height - 260, x + 120, height + 40);
+    ctx.lineWidth = 26;
+    ctx.strokeStyle = fold;
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, design.photoLeft);
+  ctx.lineTo(width, panelTop);
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = "rgba(0,0,0,.45)";
+  ctx.stroke();
+  ctx.restore();
+
+  const centerX = width / 2;
+  const at = (fraction: number) => panelTop + panelHeight * fraction;
+  const projectLogo = logoImages[project.logoUrl];
+  const vikingsLogo = logoImages[VIKINGS_LOGO_URL];
+  const opponentLogo = logoImages[opponent.logoUrl];
+  const hasScore = score !== null && (score.ours !== "" || score.theirs !== "");
+
+  if (projectLogo) {
+    drawContainImage(ctx, projectLogo, centerX, at(0.13), design.projectLogo.width, design.projectLogo.height);
+  }
+
+  const titleSize = Math.min(
+    fitSportFontSize(ctx, project.tournamentLine1, design.titleSize, width - 130),
+    fitSportFontSize(ctx, project.tournamentLine2, design.titleSize, width - 130),
+  );
+  drawSportText(ctx, project.tournamentLine1, centerX, at(0.3), titleSize);
+  drawSportText(ctx, project.tournamentLine2, centerX, at(0.3) + design.titleGap, titleSize);
+  drawSportText(ctx, stageText || "[예선 4경기]", centerX, at(0.55), design.stageSize, "center", width - 150);
+
+  const rowCy = at(hasScore ? 0.79 : 0.78);
+  if (hasScore) {
+    ctx.save();
+    ctx.font = sportFont(design.labelSize);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(255,255,255,.7)";
+    ctx.fillText("경기 종료", centerX, at(0.605));
+    ctx.restore();
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(centerX - 150, at(0.638));
+    ctx.lineTo(centerX + 150, at(0.638));
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(255,255,255,.28)";
+    ctx.stroke();
+    ctx.restore();
+
+    if (vikingsLogo) {
+      drawContainImage(ctx, vikingsLogo, centerX - design.logoSpread, rowCy, design.teamLogo, design.teamLogo);
+    }
+    if (opponentLogo) {
+      drawLogoCircle(ctx, opponentLogo, centerX + design.logoSpread, rowCy, design.teamLogo * 0.92, true);
+    }
+    const scoreBaseline = rowCy + design.scoreSize * 0.35;
+    drawSportText(ctx, score.ours || "0", centerX - design.scoreSpread, scoreBaseline, design.scoreSize, "center", 170);
+    drawSportText(ctx, score.theirs || "0", centerX + design.scoreSpread, scoreBaseline, design.scoreSize, "center", 170);
+    ctx.save();
+    ctx.font = sportFont(design.scoreSize * 0.4);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(255,255,255,.5)";
+    ctx.fillText("-", centerX, rowCy);
+    ctx.restore();
+    return;
+  }
+
+  if (vikingsLogo) {
+    drawContainImage(ctx, vikingsLogo, centerX - design.logoSpread * 0.72, rowCy, design.teamLogo, design.teamLogo);
+  }
+  if (opponentLogo) {
+    drawLogoCircle(ctx, opponentLogo, centerX + design.logoSpread * 0.72, rowCy, design.teamLogo * 0.92, true);
+  }
+  ctx.save();
+  ctx.font = `italic 900 ${Math.round(design.teamLogo * 0.34)}px ${CANVAS_FONT_STACK}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#ffffff";
+  ctx.shadowColor = "rgba(0,0,0,.34)";
+  ctx.shadowBlur = 3;
+  ctx.shadowOffsetY = 4;
+  ctx.fillText("vs", centerX, rowCy);
   ctx.restore();
 }
 
@@ -644,6 +855,7 @@ export default function ThumbnailStudio() {
   const [selectedOpponentId, setSelectedOpponentId] = useState(DEFAULT_OPPONENTS[0].id);
   const [theme, setTheme] = useState<TeamTheme>("men");
   const [stageText, setStageText] = useState("[5,6위 결정전]");
+  const [size, setSize] = useState<ThumbSize>("wide");
   const [ourScore, setOurScore] = useState("");
   const [theirScore, setTheirScore] = useState("");
   const [gamePhoto, setGamePhoto] = useState<LoadedImage | null>(null);
@@ -765,6 +977,7 @@ export default function ThumbnailStudio() {
     if (!canvas || view !== "editor") return;
     renderThumbnail({
       canvas,
+      size,
       theme,
       project: selectedProject,
       opponent: selectedOpponent,
@@ -776,7 +989,7 @@ export default function ThumbnailStudio() {
       offsetX,
       offsetY,
     });
-  }, [fontsVersion, gamePhoto, logoImages, offsetX, offsetY, score, selectedOpponent, selectedProject, stageText, theme, view, zoom]);
+  }, [fontsVersion, gamePhoto, logoImages, offsetX, offsetY, score, selectedOpponent, selectedProject, size, stageText, theme, view, zoom]);
 
   const refreshHistory = useCallback(async () => {
     try {
@@ -890,8 +1103,9 @@ export default function ThumbnailStudio() {
 
   // 화면에 표시된 크기와 실제 1920px 캔버스의 비율.
   const canvasScale = () => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    return rect?.width ? WIDTH / rect.width : 1;
+    const canvas = canvasRef.current;
+    const rect = canvas?.getBoundingClientRect();
+    return canvas && rect?.width ? canvas.width / rect.width : 1;
   };
 
   const onCanvasPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1161,6 +1375,7 @@ export default function ThumbnailStudio() {
     await document.fonts.ready;
     renderThumbnail({
       canvas,
+      size,
       theme,
       project: selectedProject,
       opponent: selectedOpponent,
@@ -1172,8 +1387,10 @@ export default function ThumbnailStudio() {
       offsetX,
       offsetY,
     });
-    const scoreSuffix = score ? `-${score.ours || 0}-${score.theirs || 0}` : "";
-    const safeName = `${selectedProject.name}-${stageText || "thumbnail"}${scoreSuffix}`.replace(/[\\/:*?"<>|]/g, "_");
+    const scoreSuffix = score && size !== "wide" ? `-${score.ours || 0}-${score.theirs || 0}` : "";
+    const sizeSuffix = size === "wide" ? "" : `-${SIZES[size].width}x${SIZES[size].height}`;
+    const safeName = `${selectedProject.name}-${stageText || "thumbnail"}${scoreSuffix}${sizeSuffix}`
+      .replace(/[\\/:*?"<>|]/g, "_");
     const fileName = `${safeName}.png`;
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
     if (!blob) {
@@ -1225,7 +1442,8 @@ export default function ThumbnailStudio() {
       }),
     });
     void refreshHistory();
-    setStatus(saved ? "1920x1080 PNG 저장 완료" : "1920x1080 PNG 다운로드 생성 완료");
+    const dimensions = `${SIZES[size].width}x${SIZES[size].height}`;
+    setStatus(saved ? `${dimensions} PNG 저장 완료` : `${dimensions} PNG 다운로드 생성 완료`);
   };
 
   const openProject = (project: Project) => {
@@ -1411,6 +1629,22 @@ export default function ThumbnailStudio() {
         </div>
 
         <div className="control-block">
+          <label>저장 크기</label>
+          <div className="segmented">
+            {(Object.keys(SIZES) as ThumbSize[]).map((key) => (
+              <button
+                key={key}
+                className={size === key ? "active" : ""}
+                type="button"
+                onClick={() => setSize(key)}
+              >
+                {SIZES[key].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="control-block">
           <label>팀 테마</label>
           <div className="segmented">
             <button className={theme === "men" ? "active" : ""} type="button" onClick={() => setTheme("men")}>남자팀</button>
@@ -1440,6 +1674,9 @@ export default function ThumbnailStudio() {
 
         <div className="control-block">
           <label htmlFor="our-score">스코어 (비우면 경기 예고)</label>
+          {size === "wide" ? (
+            <p className="field-note">16:9 는 예고 전용입니다. 스코어는 1:1 · 9:16 크기에서 나옵니다.</p>
+          ) : null}
           <div className="score-inputs">
             <input
               id="our-score"
@@ -1502,8 +1739,9 @@ export default function ThumbnailStudio() {
         <div className="canvas-frame">
           <canvas
             ref={canvasRef}
-            aria-label="1920x1080 썸네일 미리보기"
-            className={gamePhoto ? "draggable" : ""}
+            aria-label={`${SIZES[size].width}x${SIZES[size].height} 썸네일 미리보기`}
+            style={{ aspectRatio: `${SIZES[size].width} / ${SIZES[size].height}` }}
+            className={`${gamePhoto ? "draggable" : ""} ${size === "wide" ? "" : "tall"}`.trim()}
             onPointerDown={onCanvasPointerDown}
             onPointerMove={onCanvasPointerMove}
             onPointerUp={onCanvasPointerUp}

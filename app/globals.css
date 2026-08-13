@@ -652,8 +652,16 @@ select {
 canvas {
   display: block;
   width: 100%;
+  margin: 0 auto;
   aspect-ratio: 16 / 9;
   border-radius: 11px;
+}
+
+/* 세로·정사각 미리보기는 높이를 기준으로 맞춰 화면을 넘지 않게 한다. */
+canvas.tall {
+  width: auto;
+  max-width: 100%;
+  height: min(70vh, 880px);
 }
 
 @media (max-width: 980px) {
