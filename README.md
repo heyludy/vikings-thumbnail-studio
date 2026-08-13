@@ -30,6 +30,13 @@ CLOUDFLARE_DATABASE_ID=e0e1a2d0-9b02-4018-adc0-f9a6934c696a \
 npx vinext deploy
 ```
 
+`.github/workflows/deploy.yml` runs the same command from GitHub Actions, so a
+deploy can also be triggered from a phone: push to `main`, or run the **Deploy**
+workflow manually and pick a branch. It needs a `CLOUDFLARE_API_TOKEN`
+repository secret with Workers Scripts edit and D1 edit permissions
+(`CLOUDFLARE_ACCOUNT_ID` is only required when the token can reach more than one
+account). After deploying it syncs the tournament data described below.
+
 Uploaded images are stored in D1 when an R2 bucket is not configured, so the
 public deployment works without enabling R2 billing. Image bytes are kept as
 base64 text because D1 returns BLOB columns differently depending on the
