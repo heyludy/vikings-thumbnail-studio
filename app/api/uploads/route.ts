@@ -1,4 +1,4 @@
-import { createId, ensureSchema, getBindings, jsonError } from "../storage";
+import { createId, encodeAssetBody, ensureSchema, getBindings, jsonError } from "../storage";
 
 export const runtime = "edge";
 
@@ -27,7 +27,12 @@ export async function POST(request: Request) {
     await ensureSchema(DB);
     await DB.prepare(`INSERT INTO assets (key, content_type, body, original_name)
       VALUES (?, ?, ?, ?)`)
-      .bind(key, file.type || "application/octet-stream", await file.arrayBuffer(), file.name)
+      .bind(
+        key,
+        file.type || "application/octet-stream",
+        encodeAssetBody(new Uint8Array(await file.arrayBuffer())),
+        file.name,
+      )
       .run();
   }
   return Response.json({ key, url: `/api/assets/${key}` }, { status: 201 });

@@ -1,4 +1,4 @@
-import { ensureSchema, getBindings, jsonError } from "../../storage";
+import { ensureSchema, getBindings, jsonError, normalizeDivision } from "../../storage";
 
 export const runtime = "edge";
 
@@ -10,17 +10,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     name?: string;
     logoUrl?: string;
     circularFrame?: boolean;
+    division?: string;
   };
   await ensureSchema(DB);
   await DB.prepare(`UPDATE opponents
     SET name = COALESCE(?, name),
       logo_url = COALESCE(?, logo_url),
       circular_frame = COALESCE(?, circular_frame),
+      division = COALESCE(?, division),
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?`).bind(
     payload.name?.trim() || null,
     payload.logoUrl?.trim() || null,
     typeof payload.circularFrame === "boolean" ? Number(payload.circularFrame) : null,
+    payload.division ? normalizeDivision(payload.division) : null,
     id,
   ).run();
   return Response.json({ ok: true });
