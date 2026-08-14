@@ -643,30 +643,44 @@ function renderWide({
  */
 const VERTICAL_LAYOUTS = {
   square: {
-    photoLeft: 500,
-    photoRight: 440,
-    projectLogo: { width: 150, height: 132 },
-    titleSize: 52,
-    titleGap: 66,
-    stageSize: 56,
-    labelSize: 28,
-    scoreSize: 120,
-    teamLogo: 178,
-    logoSpread: 300,
-    scoreSpread: 108,
+    photoLeft: 640,
+    photoRight: 580,
+    projectLogo: { cy: 588, width: 132, height: 116 },
+    line1: 700,
+    lineGap: 56,
+    titleSize: 45,
+    stage: 824,
+    stageSize: 51,
+    label: 876,
+    labelSize: 24,
+    rule: 892,
+    ruleWidth: 130,
+    row: 972,
+    teamLogo: 136,
+    scoreSize: 104,
+    logoSpread: 286,
+    scoreSpread: 98,
+    previewSpread: 200,
   },
   story: {
-    photoLeft: 1050,
-    photoRight: 980,
-    projectLogo: { width: 210, height: 184 },
-    titleSize: 64,
-    titleGap: 82,
-    stageSize: 70,
-    labelSize: 34,
-    scoreSize: 168,
-    teamLogo: 250,
-    logoSpread: 372,
-    scoreSpread: 138,
+    photoLeft: 1120,
+    photoRight: 1050,
+    projectLogo: { cy: 1160, width: 200, height: 176 },
+    line1: 1320,
+    lineGap: 78,
+    titleSize: 62,
+    stage: 1498,
+    stageSize: 68,
+    label: 1578,
+    labelSize: 32,
+    rule: 1605,
+    ruleWidth: 165,
+    row: 1745,
+    teamLogo: 240,
+    scoreSize: 158,
+    logoSpread: 356,
+    scoreSpread: 130,
+    previewSpread: 250,
   },
 } as const;
 
@@ -721,7 +735,6 @@ function renderVertical({
 
   // 아래 패널
   const panelTop = design.photoRight;
-  const panelHeight = height - panelTop;
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(0, design.photoLeft);
@@ -770,36 +783,35 @@ function renderVertical({
   ctx.restore();
 
   const centerX = width / 2;
-  const at = (fraction: number) => panelTop + panelHeight * fraction;
   const projectLogo = logoImages[project.logoUrl];
   const vikingsLogo = logoImages[VIKINGS_LOGO_URL];
   const opponentLogo = logoImages[opponent.logoUrl];
   const hasScore = score !== null && (score.ours !== "" || score.theirs !== "");
 
   if (projectLogo) {
-    drawContainImage(ctx, projectLogo, centerX, at(0.13), design.projectLogo.width, design.projectLogo.height);
+    drawContainImage(ctx, projectLogo, centerX, design.projectLogo.cy, design.projectLogo.width, design.projectLogo.height);
   }
 
   const titleSize = Math.min(
     fitSportFontSize(ctx, project.tournamentLine1, design.titleSize, width - 130),
     fitSportFontSize(ctx, project.tournamentLine2, design.titleSize, width - 130),
   );
-  drawSportText(ctx, project.tournamentLine1, centerX, at(0.3), titleSize);
-  drawSportText(ctx, project.tournamentLine2, centerX, at(0.3) + design.titleGap, titleSize);
-  drawSportText(ctx, stageText || "[예선 4경기]", centerX, at(0.55), design.stageSize, "center", width - 150);
+  drawSportText(ctx, project.tournamentLine1, centerX, design.line1, titleSize);
+  drawSportText(ctx, project.tournamentLine2, centerX, design.line1 + design.lineGap, titleSize);
+  drawSportText(ctx, stageText || "[예선 4경기]", centerX, design.stage, design.stageSize, "center", width - 150);
 
-  const rowCy = at(hasScore ? 0.79 : 0.78);
+  const rowCy = design.row;
   if (hasScore) {
     ctx.save();
     ctx.font = sportFont(design.labelSize);
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(255,255,255,.7)";
-    ctx.fillText("경기 종료", centerX, at(0.605));
+    ctx.fillText("경기 종료", centerX, design.label);
     ctx.restore();
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(centerX - 150, at(0.638));
-    ctx.lineTo(centerX + 150, at(0.638));
+    ctx.moveTo(centerX - design.ruleWidth, design.rule);
+    ctx.lineTo(centerX + design.ruleWidth, design.rule);
     ctx.lineWidth = 3;
     ctx.strokeStyle = "rgba(255,255,255,.28)";
     ctx.stroke();
@@ -811,9 +823,9 @@ function renderVertical({
     if (opponentLogo) {
       drawLogoCircle(ctx, opponentLogo, centerX + design.logoSpread, rowCy, design.teamLogo * 0.92, true);
     }
-    const scoreBaseline = rowCy + design.scoreSize * 0.35;
-    drawSportText(ctx, score.ours || "0", centerX - design.scoreSpread, scoreBaseline, design.scoreSize, "center", 170);
-    drawSportText(ctx, score.theirs || "0", centerX + design.scoreSpread, scoreBaseline, design.scoreSize, "center", 170);
+    const scoreBaseline = rowCy + design.scoreSize * 0.34;
+    drawSportText(ctx, score.ours || "0", centerX - design.scoreSpread, scoreBaseline, design.scoreSize, "center", 165);
+    drawSportText(ctx, score.theirs || "0", centerX + design.scoreSpread, scoreBaseline, design.scoreSize, "center", 165);
     ctx.save();
     ctx.font = sportFont(design.scoreSize * 0.4);
     ctx.textAlign = "center";
@@ -825,10 +837,10 @@ function renderVertical({
   }
 
   if (vikingsLogo) {
-    drawContainImage(ctx, vikingsLogo, centerX - design.logoSpread * 0.72, rowCy, design.teamLogo, design.teamLogo);
+    drawContainImage(ctx, vikingsLogo, centerX - design.previewSpread, rowCy, design.teamLogo, design.teamLogo);
   }
   if (opponentLogo) {
-    drawLogoCircle(ctx, opponentLogo, centerX + design.logoSpread * 0.72, rowCy, design.teamLogo * 0.92, true);
+    drawLogoCircle(ctx, opponentLogo, centerX + design.previewSpread, rowCy, design.teamLogo * 0.92, true);
   }
   ctx.save();
   ctx.font = `italic 900 ${Math.round(design.teamLogo * 0.34)}px ${CANVAS_FONT_STACK}`;
