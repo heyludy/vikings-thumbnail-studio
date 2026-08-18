@@ -643,30 +643,44 @@ function renderWide({
  */
 const VERTICAL_LAYOUTS = {
   square: {
-    photoLeft: 500,
-    photoRight: 440,
-    projectLogo: { width: 150, height: 132 },
-    titleSize: 52,
-    titleGap: 66,
-    stageSize: 56,
-    labelSize: 28,
-    scoreSize: 120,
-    teamLogo: 178,
-    logoSpread: 300,
-    scoreSpread: 108,
+    photoLeft: 640,
+    photoRight: 580,
+    projectLogo: { cy: 588, width: 132, height: 116 },
+    line1: 700,
+    lineGap: 56,
+    titleSize: 45,
+    stage: 824,
+    stageSize: 51,
+    label: 876,
+    labelSize: 24,
+    rule: 892,
+    ruleWidth: 130,
+    row: 972,
+    teamLogo: 136,
+    scoreSize: 104,
+    logoSpread: 286,
+    scoreSpread: 98,
+    previewSpread: 200,
   },
   story: {
-    photoLeft: 1050,
-    photoRight: 980,
-    projectLogo: { width: 210, height: 184 },
-    titleSize: 64,
-    titleGap: 82,
-    stageSize: 70,
-    labelSize: 34,
-    scoreSize: 168,
-    teamLogo: 250,
-    logoSpread: 372,
-    scoreSpread: 138,
+    photoLeft: 1120,
+    photoRight: 1050,
+    projectLogo: { cy: 1160, width: 200, height: 176 },
+    line1: 1320,
+    lineGap: 78,
+    titleSize: 62,
+    stage: 1498,
+    stageSize: 68,
+    label: 1578,
+    labelSize: 32,
+    rule: 1605,
+    ruleWidth: 165,
+    row: 1745,
+    teamLogo: 240,
+    scoreSize: 158,
+    logoSpread: 356,
+    scoreSpread: 130,
+    previewSpread: 250,
   },
 } as const;
 
@@ -721,7 +735,6 @@ function renderVertical({
 
   // 아래 패널
   const panelTop = design.photoRight;
-  const panelHeight = height - panelTop;
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(0, design.photoLeft);
@@ -770,36 +783,35 @@ function renderVertical({
   ctx.restore();
 
   const centerX = width / 2;
-  const at = (fraction: number) => panelTop + panelHeight * fraction;
   const projectLogo = logoImages[project.logoUrl];
   const vikingsLogo = logoImages[VIKINGS_LOGO_URL];
   const opponentLogo = logoImages[opponent.logoUrl];
   const hasScore = score !== null && (score.ours !== "" || score.theirs !== "");
 
   if (projectLogo) {
-    drawContainImage(ctx, projectLogo, centerX, at(0.13), design.projectLogo.width, design.projectLogo.height);
+    drawContainImage(ctx, projectLogo, centerX, design.projectLogo.cy, design.projectLogo.width, design.projectLogo.height);
   }
 
   const titleSize = Math.min(
     fitSportFontSize(ctx, project.tournamentLine1, design.titleSize, width - 130),
     fitSportFontSize(ctx, project.tournamentLine2, design.titleSize, width - 130),
   );
-  drawSportText(ctx, project.tournamentLine1, centerX, at(0.3), titleSize);
-  drawSportText(ctx, project.tournamentLine2, centerX, at(0.3) + design.titleGap, titleSize);
-  drawSportText(ctx, stageText || "[예선 4경기]", centerX, at(0.55), design.stageSize, "center", width - 150);
+  drawSportText(ctx, project.tournamentLine1, centerX, design.line1, titleSize);
+  drawSportText(ctx, project.tournamentLine2, centerX, design.line1 + design.lineGap, titleSize);
+  drawSportText(ctx, stageText || "[예선 4경기]", centerX, design.stage, design.stageSize, "center", width - 150);
 
-  const rowCy = at(hasScore ? 0.79 : 0.78);
+  const rowCy = design.row;
   if (hasScore) {
     ctx.save();
     ctx.font = sportFont(design.labelSize);
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(255,255,255,.7)";
-    ctx.fillText("경기 종료", centerX, at(0.605));
+    ctx.fillText("경기 종료", centerX, design.label);
     ctx.restore();
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(centerX - 150, at(0.638));
-    ctx.lineTo(centerX + 150, at(0.638));
+    ctx.moveTo(centerX - design.ruleWidth, design.rule);
+    ctx.lineTo(centerX + design.ruleWidth, design.rule);
     ctx.lineWidth = 3;
     ctx.strokeStyle = "rgba(255,255,255,.28)";
     ctx.stroke();
@@ -811,9 +823,9 @@ function renderVertical({
     if (opponentLogo) {
       drawLogoCircle(ctx, opponentLogo, centerX + design.logoSpread, rowCy, design.teamLogo * 0.92, true);
     }
-    const scoreBaseline = rowCy + design.scoreSize * 0.35;
-    drawSportText(ctx, score.ours || "0", centerX - design.scoreSpread, scoreBaseline, design.scoreSize, "center", 170);
-    drawSportText(ctx, score.theirs || "0", centerX + design.scoreSpread, scoreBaseline, design.scoreSize, "center", 170);
+    const scoreBaseline = rowCy + design.scoreSize * 0.34;
+    drawSportText(ctx, score.ours || "0", centerX - design.scoreSpread, scoreBaseline, design.scoreSize, "center", 165);
+    drawSportText(ctx, score.theirs || "0", centerX + design.scoreSpread, scoreBaseline, design.scoreSize, "center", 165);
     ctx.save();
     ctx.font = sportFont(design.scoreSize * 0.4);
     ctx.textAlign = "center";
@@ -825,10 +837,10 @@ function renderVertical({
   }
 
   if (vikingsLogo) {
-    drawContainImage(ctx, vikingsLogo, centerX - design.logoSpread * 0.72, rowCy, design.teamLogo, design.teamLogo);
+    drawContainImage(ctx, vikingsLogo, centerX - design.previewSpread, rowCy, design.teamLogo, design.teamLogo);
   }
   if (opponentLogo) {
-    drawLogoCircle(ctx, opponentLogo, centerX + design.logoSpread * 0.72, rowCy, design.teamLogo * 0.92, true);
+    drawLogoCircle(ctx, opponentLogo, centerX + design.previewSpread, rowCy, design.teamLogo * 0.92, true);
   }
   ctx.save();
   ctx.font = `italic 900 ${Math.round(design.teamLogo * 0.34)}px ${CANVAS_FONT_STACK}`;
@@ -1368,14 +1380,14 @@ export default function ThumbnailStudio() {
     setStatus(`${file.name} 원본 bitmap 로드 완료`);
   };
 
-  const downloadPng = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    // 저장 직전에 다시 그리므로 웹폰트가 확실히 준비된 뒤에 그린다.
-    await document.fonts.ready;
+  // 선택한 크기로 그려서 파일 하나를 만든다. 미리보기 캔버스와 같은 그림이다.
+  const renderToFile = async (target: ThumbSize) => {
+    const canvas = target === size && canvasRef.current
+      ? canvasRef.current
+      : document.createElement("canvas");
     renderThumbnail({
       canvas,
-      size,
+      size: target,
       theme,
       project: selectedProject,
       opponent: selectedOpponent,
@@ -1387,47 +1399,47 @@ export default function ThumbnailStudio() {
       offsetX,
       offsetY,
     });
-    const scoreSuffix = score && size !== "wide" ? `-${score.ours || 0}-${score.theirs || 0}` : "";
-    const sizeSuffix = size === "wide" ? "" : `-${SIZES[size].width}x${SIZES[size].height}`;
-    const safeName = `${selectedProject.name}-${stageText || "thumbnail"}${scoreSuffix}${sizeSuffix}`
-      .replace(/[\\/:*?"<>|]/g, "_");
-    const fileName = `${safeName}.png`;
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-    if (!blob) {
-      setStatus("PNG 생성에 실패했습니다.");
-      return;
-    }
+    if (!blob) return null;
+    const { width, height } = SIZES[target];
+    const scoreSuffix = score && target !== "wide" ? `-${score.ours || 0}-${score.theirs || 0}` : "";
+    const name = `${selectedProject.name}-${stageText || "thumbnail"}${scoreSuffix}-${width}x${height}.png`
+      .replace(/[\\/:*?"<>|]/g, "_");
+    return new File([blob], name, { type: "image/png" });
+  };
 
-    // iOS Safari 는 큰 data:/blob: 다운로드를 막기 때문에 공유 시트로 저장하게 한다.
-    const file = new File([blob], fileName, { type: "image/png" });
-    const canShareFile = typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
-    const isAppleMobile = /iP(hone|ad|od)/.test(navigator.userAgent)
-      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    let saved = false;
-    if (isAppleMobile && canShareFile) {
+  const isAppleMobile = () => typeof navigator !== "undefined"
+    && (/iP(hone|ad|od)/.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+
+  const saveFiles = async (files: File[]) => {
+    // iOS 는 큰 파일 다운로드를 막기 때문에 공유 시트로 저장하게 한다.
+    const canShareFiles = typeof navigator.canShare === "function" && navigator.canShare({ files });
+    if (isAppleMobile() && canShareFiles) {
       try {
-        await navigator.share({ files: [file], title: fileName });
-        saved = true;
+        await navigator.share({ files, title: files[0].name });
+        return true;
       } catch (error) {
-        if ((error as Error)?.name === "AbortError") {
-          setStatus("저장을 취소했습니다.");
-          return;
-        }
+        if ((error as Error)?.name === "AbortError") return null;
       }
     }
-    if (!saved) {
-      const objectUrl = URL.createObjectURL(blob);
+    files.forEach((file, index) => {
+      const objectUrl = URL.createObjectURL(file);
       const link = document.createElement("a");
-      link.download = fileName;
+      link.download = file.name;
       link.href = objectUrl;
       link.rel = "noopener";
       document.body.append(link);
       link.click();
       link.remove();
-      // 다운로드가 막힌 브라우저에서도 이미지를 길게 눌러 저장할 수 있도록 새 탭으로 띄운다.
-      if (isAppleMobile) window.open(objectUrl, "_blank");
+      // 다운로드가 막힌 브라우저에서도 길게 눌러 저장할 수 있게 마지막 장을 새 탭으로 띄운다.
+      if (isAppleMobile() && index === files.length - 1) window.open(objectUrl, "_blank");
       setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-    }
+    });
+    return false;
+  };
+
+  const recordThumbnail = () => {
     void fetch("/api/thumbnails", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1440,10 +1452,59 @@ export default function ThumbnailStudio() {
         theirScore: score?.theirs ?? null,
         photoName: gamePhoto?.fileName ?? null,
       }),
+    }).then(() => refreshHistory());
+  };
+
+  const downloadPng = async () => {
+    if (!canvasRef.current) return;
+    await document.fonts.ready;
+    const file = await renderToFile(size);
+    if (!file) {
+      setStatus("PNG 생성에 실패했습니다.");
+      return;
+    }
+    const saved = await saveFiles([file]);
+    if (saved === null) {
+      setStatus("저장을 취소했습니다.");
+      return;
+    }
+    recordThumbnail();
+    const { width, height } = SIZES[size];
+    setStatus(saved ? `${width}x${height} PNG 저장 완료` : `${width}x${height} PNG 다운로드 생성 완료`);
+  };
+
+  const downloadAllSizes = async () => {
+    if (!canvasRef.current) return;
+    await document.fonts.ready;
+    setStatus("세 크기 만드는 중");
+    const targets = Object.keys(SIZES) as ThumbSize[];
+    const files = (await Promise.all(targets.map((target) => renderToFile(target)))).filter(Boolean) as File[];
+    // 마지막에 현재 크기를 다시 그려 미리보기를 되돌린다.
+    renderThumbnail({
+      canvas: canvasRef.current,
+      size,
+      theme,
+      project: selectedProject,
+      opponent: selectedOpponent,
+      stageText,
+      score,
+      gamePhoto: gamePhoto?.img,
+      logoImages,
+      zoom,
+      offsetX,
+      offsetY,
     });
-    void refreshHistory();
-    const dimensions = `${SIZES[size].width}x${SIZES[size].height}`;
-    setStatus(saved ? `${dimensions} PNG 저장 완료` : `${dimensions} PNG 다운로드 생성 완료`);
+    if (!files.length) {
+      setStatus("PNG 생성에 실패했습니다.");
+      return;
+    }
+    const saved = await saveFiles(files);
+    if (saved === null) {
+      setStatus("저장을 취소했습니다.");
+      return;
+    }
+    recordThumbnail();
+    setStatus(saved ? `${files.length}개 크기 저장 완료` : `${files.length}개 크기 다운로드 생성 완료`);
   };
 
   const openProject = (project: Project) => {
@@ -1731,7 +1792,12 @@ export default function ThumbnailStudio() {
           사진 위치 초기화
         </button>
 
-        <button className="download" type="button" onClick={downloadPng}>PNG 다운로드</button>
+        <button className="download" type="button" onClick={downloadPng}>
+          {`${SIZES[size].label} PNG 저장`}
+        </button>
+        <button className="secondary-action" type="button" onClick={downloadAllSizes}>
+          세 크기 한 번에 저장
+        </button>
         <p className="status">{status}</p>
       </section>
 
